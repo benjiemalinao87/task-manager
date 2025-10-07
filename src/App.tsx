@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { CheckSquare, Settings as SettingsIcon } from 'lucide-react';
 import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
+import { TaskHistory } from './components/TaskHistory';
+import { TabNavigation } from './components/TabNavigation';
 import { Settings } from './components/Settings';
 import { ClockIn } from './components/ClockIn';
 import { ClockOutWidget } from './components/ClockOutWidget';
@@ -13,6 +15,7 @@ function App() {
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [activeTab, setActiveTab] = useState<'manager' | 'history'>('manager');
 
   useEffect(() => {
     checkActiveSession();
@@ -83,8 +86,16 @@ function App() {
           <p className="text-gray-600">Create tasks with AI summaries and automatic email notifications</p>
         </header>
 
-        <TaskForm onTaskCreated={handleTaskCreated} />
-        <TaskList refreshTrigger={refreshTrigger} />
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {activeTab === 'manager' ? (
+          <>
+            <TaskForm onTaskCreated={handleTaskCreated} />
+            <TaskList refreshTrigger={refreshTrigger} />
+          </>
+        ) : (
+          <TaskHistory refreshTrigger={refreshTrigger} />
+        )}
       </div>
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
