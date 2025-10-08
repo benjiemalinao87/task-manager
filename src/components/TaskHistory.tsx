@@ -9,6 +9,7 @@ import {
   History
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { formatDateTimePST } from '../lib/dateUtils';
 import type { Database } from '../lib/database.types';
 
 type Task = Database['public']['Tables']['tasks']['Row'];
@@ -48,15 +49,7 @@ export function TaskHistory({ refreshTrigger }: TaskHistoryProps) {
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatDateTimePST(dateString);
   };
 
   const renderTaskCard = (task: Task) => (

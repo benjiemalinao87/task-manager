@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { formatDateTimePST } from '../lib/dateUtils';
 import type { Database } from '../lib/database.types';
 
 type Task = Database['public']['Tables']['tasks']['Row'];
@@ -193,7 +194,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
 
             <div className="flex items-center gap-2 text-gray-500 text-xs sm:col-span-2">
               <Calendar className="w-4 h-4" />
-              <span>Created: {new Date(task.created_at).toLocaleString()}</span>
+              <span>Created: {formatDateTimePST(task.created_at)}</span>
             </div>
           </div>
 

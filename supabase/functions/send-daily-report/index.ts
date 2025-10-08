@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
   <div class="container">
     <div class="header">
       <h1>📊 Daily Work Report</h1>
-      <p>${clockInDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      <p>${clockInDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
     </div>
 
     <div class="summary-stats">
@@ -216,11 +216,11 @@ Deno.serve(async (req: Request) => {
       <table style="margin-bottom: 30px;">
         <tr style="border-bottom: 1px solid #e5e7eb;">
           <td style="padding: 12px; font-weight: 600; color: #6b7280; width: 150px;">Clock In</td>
-          <td style="padding: 12px;">${clockInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="padding: 12px;">${clockInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}</td>
         </tr>
         <tr style="border-bottom: 1px solid #e5e7eb;">
           <td style="padding: 12px; font-weight: 600; color: #6b7280;">Clock Out</td>
-          <td style="padding: 12px;">${clockOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</td>
+          <td style="padding: 12px;">${clockOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}</td>
         </tr>
         <tr>
           <td style="padding: 12px; font-weight: 600; color: #6b7280;">Total Duration</td>
@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
 
     <div class="footer">
       <p style="margin: 0;">This is an automated daily report from Task Manager.</p>
-      <p style="margin: 8px 0 0 0; color: #9ca3af;">Generated on ${new Date().toLocaleString('en-US')}</p>
+      <p style="margin: 8px 0 0 0; color: #9ca3af;">Generated on ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}</p>
     </div>
   </div>
 </body>
@@ -279,7 +279,7 @@ Deno.serve(async (req: Request) => {
           personalizations: [
             {
               to: recipients,
-              subject: `Daily Work Report - ${clockInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+              subject: `Daily Work Report - ${clockInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}`,
             },
           ],
           from: {
