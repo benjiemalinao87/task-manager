@@ -57,10 +57,11 @@ export function ClockIn({ onClockIn }: ClockInProps) {
   const handleClockIn = async () => {
     setIsProcessing(true);
     try {
+      const clockInTimeStamp = new Date().toISOString();
       const { data, error } = await supabase
         .from('time_sessions')
         .insert({
-          clock_in: new Date().toISOString(),
+          clock_in: clockInTimeStamp,
         })
         .select()
         .maybeSingle();
@@ -72,6 +73,27 @@ export function ClockIn({ onClockIn }: ClockInProps) {
       setClockInTime(new Date(data.clock_in));
       setIsClockedIn(true);
       onClockIn(data.id);
+
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('default_email')
+        .maybeSingle();
+
+      const email = settingsData?.default_email;
+      if (email) {
+        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-clockin-email`;
+        await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            clockInTime: clockInTimeStamp,
+          }),
+        });
+      }
     } catch (error) {
       console.error('Error clocking in:', error);
       alert('Failed to clock in. Please try again.');

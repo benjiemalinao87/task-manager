@@ -21,6 +21,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
     setIsSubmitting(true);
 
     try {
+      const createdAtTime = new Date().toISOString();
       const { data: task, error: insertError } = await supabase
         .from('tasks')
         .insert({
@@ -29,7 +30,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
           estimated_time: formData.estimatedTime,
           task_link: formData.taskLink || null,
           status: 'in_progress',
-          started_at: new Date().toISOString(),
+          started_at: createdAtTime,
         })
         .select()
         .maybeSingle();
@@ -53,6 +54,31 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
 
       if (!summaryResponse.ok) {
         console.error('Failed to generate AI summary');
+      }
+
+      const { data: settingsData } = await supabase
+        .from('settings')
+        .select('default_email')
+        .maybeSingle();
+
+      const email = settingsData?.default_email;
+      if (email) {
+        const taskCreatedUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-created-email`;
+        await fetch(taskCreatedUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            taskName: formData.taskName,
+            description: formData.description,
+            estimatedTime: formData.estimatedTime,
+            taskLink: formData.taskLink || null,
+            createdAt: createdAtTime,
+          }),
+        });
       }
 
       setFormData({
