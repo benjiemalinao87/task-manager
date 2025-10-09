@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatDateTimePST } from '../lib/dateUtils';
 import type { Database } from '../lib/database.types';
@@ -14,6 +14,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
 
@@ -47,6 +48,30 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const handleCancelNote = () => {
     setShowNoteInput(null);
     setNoteText('');
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingTaskId(taskId);
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+
+      await fetchTasks();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Failed to delete task. Please try again.');
+    } finally {
+      setDeletingTaskId(null);
+    }
   };
 
   const handleCompleteTask = async (task: Task, notes?: string) => {
@@ -198,8 +223,9 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
             </div>
           </div>
 
-          {showNoteInput === task.id ? (
-            <div className="space-y-3">
+          <div className="flex gap-2">
+            {showNoteInput === task.id ? (
+              <div className="flex-1 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Add Note (optional)
@@ -212,43 +238,56 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                   rows={3}
                 />
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleCompleteTask(task, noteText)}
-                  disabled={completingTaskId === task.id}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {completingTaskId === task.id ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Completing...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5" />
-                      Complete Task
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCancelNote}
-                  disabled={completingTaskId === task.id}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCompleteTask(task, noteText)}
+                    disabled={completingTaskId === task.id}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {completingTaskId === task.id ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Completing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        Complete Task
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCancelNote}
+                    disabled={completingTaskId === task.id}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
+            ) : (
+              <button
+                onClick={() => handleShowNoteInput(task.id)}
+                disabled={completingTaskId === task.id}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Complete Task
+              </button>
+            )}
             <button
-              onClick={() => handleShowNoteInput(task.id)}
-              disabled={completingTaskId === task.id}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => handleDeleteTask(task.id)}
+              disabled={deletingTaskId === task.id || completingTaskId === task.id}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Delete task"
             >
-              <CheckCircle2 className="w-5 h-5" />
-              Complete Task
+              {deletingTaskId === task.id ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Trash2 className="w-5 h-5" />
+              )}
             </button>
-          )}
+          </div>
         </div>
       ))}
     </div>
