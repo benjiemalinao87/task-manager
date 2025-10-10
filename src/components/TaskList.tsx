@@ -17,10 +17,27 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     fetchTasks();
   }, [refreshTrigger]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const calculateElapsedTime = (startedAt: string) => {
+    const start = new Date(startedAt);
+    const diff = currentTime.getTime() - start.getTime();
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
 
   const fetchTasks = async () => {
     setIsLoading(true);
@@ -177,6 +194,14 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
               <Clock className="w-4 h-4 animate-pulse" />
               In Progress
             </span>
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6 mb-4 shadow-lg">
+            <div className="text-center">
+              <p className="text-sm font-medium mb-2 opacity-90">Time Running</p>
+              <p className="text-5xl font-bold font-mono tracking-wider">{calculateElapsedTime(task.started_at)}</p>
+              <p className="text-xs mt-2 opacity-75">HH:MM:SS</p>
+            </div>
           </div>
 
           <p className="text-gray-600 mb-4">{task.description}</p>
