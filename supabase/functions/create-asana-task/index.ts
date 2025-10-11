@@ -77,11 +77,33 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // First, get the project details to find the workspace
+    let workspaceGid: string | null = null;
+    try {
+      const projectResponse = await fetch(
+        `https://app.asana.com/api/1.0/projects/${projectGid}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${integration.api_key}`,
+            "Accept": "application/json",
+          },
+        }
+      );
+
+      if (projectResponse.ok) {
+        const projectData = await projectResponse.json();
+        workspaceGid = projectData.data?.workspace?.gid;
+        console.log('Found workspace GID:', workspaceGid);
+      }
+    } catch (err) {
+      console.error("Failed to fetch project details:", err);
+    }
+
     let assigneeGid: string | null = null;
-    if (defaultAssigneeEmail) {
+    if (defaultAssigneeEmail && workspaceGid) {
       try {
         const userResponse = await fetch(
-          `https://app.asana.com/api/1.0/users?workspace=${projectGid.split('/')[0]}`,
+          `https://app.asana.com/api/1.0/workspaces/${workspaceGid}/users`,
           {
             headers: {
               "Authorization": `Bearer ${integration.api_key}`,
@@ -92,12 +114,19 @@ Deno.serve(async (req: Request) => {
 
         if (userResponse.ok) {
           const userData = await userResponse.json();
+          console.log('Users found:', userData.data?.length);
           const user = userData.data?.find(
             (u: any) => u.email?.toLowerCase() === defaultAssigneeEmail.toLowerCase()
           );
           if (user) {
             assigneeGid = user.gid;
+            console.log('Found assignee GID:', assigneeGid, 'for email:', defaultAssigneeEmail);
+          } else {
+            console.log('No user found with email:', defaultAssigneeEmail);
           }
+        } else {
+          const errorText = await userResponse.text();
+          console.error('Failed to fetch users:', userResponse.status, errorText);
         }
       } catch (err) {
         console.error("Failed to fetch Asana user:", err);
@@ -125,6 +154,9 @@ Deno.serve(async (req: Request) => {
 
     if (assigneeGid) {
       asanaTaskData.data.assignee = assigneeGid;
+      console.log('Assigning task to:', assigneeGid);
+    } else {
+      console.log('No assignee found, task will be unassigned');
     }
 
     const asanaResponse = await fetch("https://app.asana.com/api/1.0/tasks", {
