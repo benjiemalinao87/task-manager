@@ -36,50 +36,72 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('Fetching Asana projects with token length:', apiToken.length);
+    console.log('Fetching Asana workspaces');
 
-    const asanaResponse = await fetch('https://app.asana.com/api/1.0/projects', {
+    // First, fetch workspaces
+    const workspacesResponse = await fetch('https://app.asana.com/api/1.0/workspaces', {
       headers: {
         'Authorization': `Bearer ${apiToken}`,
         'Accept': 'application/json',
       },
     });
 
-    console.log('Asana response status:', asanaResponse.status);
-
-    if (!asanaResponse.ok) {
-      const errorText = await asanaResponse.text();
-      console.error('Asana API error:', asanaResponse.status, errorText);
-
-      let errorMessage = "Failed to fetch projects. Please check your API token.";
-
-      try {
-        const errorData = JSON.parse(errorText);
-        if (errorData.errors && errorData.errors.length > 0) {
-          errorMessage = errorData.errors[0].message || errorMessage;
-        }
-      } catch (e) {
-        // If error text is not JSON, use default message
-      }
-
+    if (!workspacesResponse.ok) {
+      const errorText = await workspacesResponse.text();
+      console.error('Asana workspaces error:', workspacesResponse.status, errorText);
       return new Response(
-        JSON.stringify({
-          error: errorMessage,
-          status: asanaResponse.status,
-          details: errorText
-        }),
+        JSON.stringify({ error: "Failed to fetch workspaces. Please check your API token." }),
         {
-          status: asanaResponse.status,
+          status: workspacesResponse.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    const data = await asanaResponse.json();
-    console.log('Successfully fetched', data.data?.length || 0, 'projects');
+    const workspacesData = await workspacesResponse.json();
+    const workspaces = workspacesData.data || [];
+    console.log('Found workspaces:', workspaces.length);
+
+    if (workspaces.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No workspaces found for this token." }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Fetch projects from all workspaces
+    const allProjects: any[] = [];
+
+    for (const workspace of workspaces) {
+      console.log('Fetching projects for workspace:', workspace.name);
+      const projectsResponse = await fetch(
+        `https://app.asana.com/api/1.0/projects?workspace=${workspace.gid}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${apiToken}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (projectsResponse.ok) {
+        const projectsData = await projectsResponse.json();
+        const projects = projectsData.data || [];
+        // Add workspace name to each project for clarity
+        projects.forEach((project: any) => {
+          project.workspace_name = workspace.name;
+        });
+        allProjects.push(...projects);
+      }
+    }
+
+    console.log('Successfully fetched', allProjects.length, 'total projects');
 
     return new Response(
-      JSON.stringify({ projects: data.data || [] }),
+      JSON.stringify({ projects: allProjects }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
