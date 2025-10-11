@@ -54,19 +54,23 @@ export function AsanaIntegration() {
     setIsFetchingProjects(true);
     setError('');
     try {
-      const response = await fetch('https://app.asana.com/api/1.0/projects', {
+      const projectsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-asana-projects`;
+      const response = await fetch(projectsUrl, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ apiToken: token }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch projects. Please check your API token.');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch projects. Please check your API token.');
       }
 
       const data = await response.json();
-      setProjects(data.data || []);
+      setProjects(data.projects || []);
       setIsConnected(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to Asana');
