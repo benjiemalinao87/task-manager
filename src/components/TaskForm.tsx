@@ -81,6 +81,41 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         });
       }
 
+      const { data: asanaIntegration } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('integration_type', 'asana')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (asanaIntegration?.api_key) {
+        try {
+          const asanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-asana-task`;
+          const asanaResponse = await fetch(asanaUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              taskName: formData.taskName,
+              description: formData.description,
+              estimatedTime: formData.estimatedTime,
+              taskLink: formData.taskLink || null,
+            }),
+          });
+
+          if (asanaResponse.ok) {
+            const asanaResult = await asanaResponse.json();
+            console.log('Asana task created:', asanaResult.asanaTaskUrl);
+          } else {
+            console.error('Failed to create Asana task');
+          }
+        } catch (asanaError) {
+          console.error('Error creating Asana task:', asanaError);
+        }
+      }
+
       setFormData({
         taskName: '',
         description: '',

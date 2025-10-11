@@ -4,7 +4,7 @@ import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
 import { TaskHistory } from './components/TaskHistory';
 import { TabNavigation } from './components/TabNavigation';
-import { Settings } from './components/Settings';
+import { Integrations } from './components/Integrations';
 import { ClockIn } from './components/ClockIn';
 import { ClockOutWidget } from './components/ClockOutWidget';
 import { supabase } from './lib/supabase';
@@ -98,7 +98,7 @@ function App() {
         )}
       </div>
 
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && <Integrations onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

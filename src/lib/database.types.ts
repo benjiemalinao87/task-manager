@@ -9,6 +9,35 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      integrations: {
+        Row: {
+          id: string
+          integration_type: string
+          api_key: string
+          is_active: boolean
+          config: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          integration_type: string
+          api_key?: string
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          integration_type?: string
+          api_key?: string
+          is_active?: boolean
+          config?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
       tasks: {
         Row: {
           id: string
