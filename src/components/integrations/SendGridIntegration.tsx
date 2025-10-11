@@ -187,36 +187,24 @@ export function SendGridIntegration() {
         return;
       }
 
-      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-email`;
+      const response = await fetch(testUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: testEmail }],
-              subject: 'Test Email from Task Manager',
-            },
-          ],
-          from: {
-            email: fromEmail,
-            name: fromName || undefined,
-          },
-          content: [
-            {
-              type: 'text/html',
-              value: '<p>This is a test email from your Task Manager application using SendGrid.</p><p>Your SendGrid integration is working correctly!</p>',
-            },
-          ],
+          provider: 'sendgrid',
+          toEmail: testEmail,
+          fromEmail: fromEmail,
+          fromName: fromName || 'Task Manager',
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('SendGrid error:', errorData);
-        throw new Error('Failed to send test email');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send test email');
       }
 
       alert(`Test email sent successfully to ${testEmail}!`);

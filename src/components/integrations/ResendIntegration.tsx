@@ -213,23 +213,24 @@ export function ResendIntegration() {
         return;
       }
 
-      const response = await fetch('https://api.resend.com/emails', {
+      const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-email`;
+      const response = await fetch(testUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: fromName ? `${fromName} <${fromEmail}>` : fromEmail,
-          to: [testEmail],
-          subject: 'Test Email from Task Manager',
-          html: '<p>This is a test email from your Task Manager application using Resend.</p><p>Your Resend integration is working correctly!</p>',
+          provider: 'resend',
+          toEmail: testEmail,
+          fromEmail: fromEmail,
+          fromName: fromName || 'Task Manager',
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send test email');
+        throw new Error(errorData.error || 'Failed to send test email');
       }
 
       alert(`Test email sent successfully to ${testEmail}!`);
