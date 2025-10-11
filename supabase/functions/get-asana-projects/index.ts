@@ -36,6 +36,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    console.log('Fetching Asana projects with token length:', apiToken.length);
+
     const asanaResponse = await fetch('https://app.asana.com/api/1.0/projects', {
       headers: {
         'Authorization': `Bearer ${apiToken}`,
@@ -43,11 +45,29 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    console.log('Asana response status:', asanaResponse.status);
+
     if (!asanaResponse.ok) {
       const errorText = await asanaResponse.text();
-      console.error('Asana API error:', errorText);
+      console.error('Asana API error:', asanaResponse.status, errorText);
+
+      let errorMessage = "Failed to fetch projects. Please check your API token.";
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.errors && errorData.errors.length > 0) {
+          errorMessage = errorData.errors[0].message || errorMessage;
+        }
+      } catch (e) {
+        // If error text is not JSON, use default message
+      }
+
       return new Response(
-        JSON.stringify({ error: "Failed to fetch projects. Please check your API token." }),
+        JSON.stringify({
+          error: errorMessage,
+          status: asanaResponse.status,
+          details: errorText
+        }),
         {
           status: asanaResponse.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -56,6 +76,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await asanaResponse.json();
+    console.log('Successfully fetched', data.data?.length || 0, 'projects');
 
     return new Response(
       JSON.stringify({ projects: data.data || [] }),
