@@ -151,6 +151,41 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
 
       if (updateError) throw updateError;
 
+      // If the task has an Asana task ID, complete it in Asana too
+      if (task.asana_task_id) {
+        try {
+          const { data: integrationData } = await supabase
+            .from('integrations')
+            .select('api_key, is_active')
+            .eq('integration_type', 'asana')
+            .maybeSingle();
+
+          if (integrationData?.is_active && integrationData.api_key) {
+            const completeAsanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/complete-asana-task`;
+            const asanaResponse = await fetch(completeAsanaUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                apiToken: integrationData.api_key,
+                asanaTaskId: task.asana_task_id,
+              }),
+            });
+
+            if (asanaResponse.ok) {
+              console.log('Successfully completed task in Asana');
+            } else {
+              console.error('Failed to complete task in Asana');
+            }
+          }
+        } catch (asanaError) {
+          console.error('Error completing Asana task:', asanaError);
+          // Don't fail the entire operation if Asana completion fails
+        }
+      }
+
       setShowNoteInput(null);
       setNoteText('');
       await fetchTasks();

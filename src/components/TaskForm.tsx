@@ -108,6 +108,14 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
           if (asanaResponse.ok) {
             const asanaResult = await asanaResponse.json();
             console.log('Asana task created:', asanaResult.asanaTaskUrl);
+
+            // Store the Asana task ID in the database
+            if (asanaResult.asanaTaskGid) {
+              await supabase
+                .from('tasks')
+                .update({ asana_task_id: asanaResult.asanaTaskGid })
+                .eq('id', task.id);
+            }
           } else {
             console.error('Failed to create Asana task');
           }
