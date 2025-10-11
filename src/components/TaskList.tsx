@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatDateTimePST } from '../lib/dateUtils';
 import type { Database } from '../lib/database.types';
@@ -15,6 +15,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [syncingTaskId, setSyncingTaskId] = useState<string | null>(null);
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -65,6 +66,62 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const handleCancelNote = () => {
     setShowNoteInput(null);
     setNoteText('');
+  };
+
+  const handleSyncToAsana = async (task: Task) => {
+    setSyncingTaskId(task.id);
+
+    try {
+      const { data: asanaIntegration } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('integration_type', 'asana')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!asanaIntegration?.api_key) {
+        alert('Asana integration is not configured or inactive.');
+        setSyncingTaskId(null);
+        return;
+      }
+
+      const asanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-asana-task`;
+      const asanaResponse = await fetch(asanaUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskName: task.task_name,
+          description: task.description,
+          estimatedTime: task.estimated_time,
+          taskLink: task.task_link || null,
+        }),
+      });
+
+      if (!asanaResponse.ok) {
+        const errorData = await asanaResponse.json();
+        throw new Error(errorData.error || 'Failed to create Asana task');
+      }
+
+      const asanaResult = await asanaResponse.json();
+
+      if (asanaResult.asanaTaskGid) {
+        await supabase
+          .from('tasks')
+          .update({ asana_task_id: asanaResult.asanaTaskGid })
+          .eq('id', task.id);
+
+        await fetchTasks();
+        alert('Task successfully synced to Asana!');
+      }
+    } catch (error) {
+      console.error('Error syncing to Asana:', error);
+      alert('Failed to sync task to Asana. Please try again.');
+    } finally {
+      setSyncingTaskId(null);
+    }
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -282,6 +339,28 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
               <span>Created: {formatDateTimePST(task.created_at)}</span>
             </div>
           </div>
+
+          {!task.asana_task_id && (
+            <div className="mb-3">
+              <button
+                onClick={() => handleSyncToAsana(task)}
+                disabled={syncingTaskId === task.id}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncingTaskId === task.id ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Syncing to Asana...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-5 h-5" />
+                    Sync to Asana
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           <div className="flex gap-2">
             {showNoteInput === task.id ? (
