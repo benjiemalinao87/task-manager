@@ -1,10 +1,25 @@
+import { useState } from 'react';
 import { CheckCircle2, Clock, Mail, BarChart3, Zap, Shield, ArrowRight, CheckSquare } from 'lucide-react';
+import { PricingPage } from './PricingPage';
+import { AboutPage } from './AboutPage';
 
 interface LandingPageProps {
   onGetStarted: () => void;
 }
 
 export function LandingPage({ onGetStarted }: LandingPageProps) {
+  const [showPricing, setShowPricing] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+
+  // Show pricing page
+  if (showPricing) {
+    return <PricingPage onGetStarted={onGetStarted} onClose={() => setShowPricing(false)} />;
+  }
+
+  // Show about page
+  if (showAbout) {
+    return <AboutPage onGetStarted={onGetStarted} onClose={() => setShowAbout(false)} />;
+  }
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -521,9 +536,9 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             <div>
               <h4 className="text-white font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Features</a></li>
-                <li><a href="#" className="hover:text-white">Pricing</a></li>
-                <li><a href="#" className="hover:text-white">Integrations</a></li>
+                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white text-left">Features</button></li>
+                <li><button onClick={() => setShowPricing(true)} className="hover:text-white text-left">Pricing</button></li>
+                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white text-left">Integrations</button></li>
               </ul>
             </div>
             <div>
@@ -537,7 +552,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             <div>
               <h4 className="text-white font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">About</a></li>
+                <li><button onClick={() => setShowAbout(true)} className="hover:text-white text-left">About</button></li>
                 <li><a href="#" className="hover:text-white">Privacy</a></li>
                 <li><a href="#" className="hover:text-white">Terms</a></li>
               </ul>
