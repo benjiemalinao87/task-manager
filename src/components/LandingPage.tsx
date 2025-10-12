@@ -1,6 +1,10 @@
 import { CheckCircle2, Clock, Mail, BarChart3, Zap, Shield, ArrowRight, CheckSquare } from 'lucide-react';
 
-export function LandingPage() {
+interface LandingPageProps {
+  onGetStarted: () => void;
+}
+
+export function LandingPage({ onGetStarted }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -8,11 +12,11 @@ export function LandingPage() {
         <nav className="container mx-auto px-4 py-6 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <CheckSquare className="w-8 h-8" />
-            <span className="text-xl font-bold">TaskProof</span>
+            <span className="text-xl font-bold">Workoto</span>
           </div>
-          <a href="/" className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors inline-block">
-            Go to App
-          </a>
+          <button onClick={onGetStarted} className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+            Sign In
+          </button>
         </nav>
 
         <div className="container mx-auto px-4 py-20 text-center max-w-5xl">
@@ -30,9 +34,9 @@ export function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <a href="/" className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
+            <button onClick={onGetStarted} className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
               Start Free Trial <ArrowRight className="w-5 h-5" />
-            </a>
+            </button>
             <button className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
               Watch Demo
             </button>
@@ -102,7 +106,7 @@ export function LandingPage() {
               Automatic Transparency That Builds Trust
             </h2>
             <p className="text-xl text-gray-600">
-              TaskProof works in the background, keeping your clients informed without any extra effort from you.
+              Workoto works in the background, keeping your clients informed without any extra effort from you.
             </p>
           </div>
 
@@ -310,7 +314,7 @@ export function LandingPage() {
                 ))}
               </div>
               <p className="text-gray-700 mb-4">
-                "My clients love getting updates without having to ask. I've landed 3 long-term contracts since using TaskProof."
+                "My clients love getting updates without having to ask. I've landed 3 long-term contracts since using Workoto."
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
@@ -371,7 +375,7 @@ export function LandingPage() {
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Freelancers Choose TaskProof
+              Why Freelancers Choose Workoto
             </h2>
           </div>
 
@@ -461,7 +465,7 @@ export function LandingPage() {
                 Do I need to change how I work?
               </h3>
               <p className="text-gray-600">
-                Not at all. Just add tasks as you normally would. TaskProof handles the rest automatically in the background.
+                Not at all. Just add tasks as you normally would. Workoto handles the rest automatically in the background.
               </p>
             </div>
           </div>
@@ -478,9 +482,9 @@ export function LandingPage() {
             Join hundreds of freelancers who've stopped defending their productivity and started proving it.
           </p>
 
-          <a href="/" className="bg-white text-blue-600 px-10 py-5 rounded-lg font-bold text-xl hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-xl mx-auto mb-6">
+          <button onClick={onGetStarted} className="bg-white text-blue-600 px-10 py-5 rounded-lg font-bold text-xl hover:bg-blue-50 transition-colors inline-flex items-center gap-2 shadow-xl mx-auto mb-6">
             Start Your Free Trial <ArrowRight className="w-6 h-6" />
-          </a>
+          </button>
 
           <p className="text-blue-200 mb-8">14-day free trial • No credit card required • Cancel anytime</p>
 
@@ -508,7 +512,7 @@ export function LandingPage() {
             <div>
               <div className="flex items-center gap-2 text-white mb-4">
                 <CheckSquare className="w-6 h-6" />
-                <span className="font-bold">TaskProof</span>
+                <span className="font-bold">Workoto</span>
               </div>
               <p className="text-sm">
                 The task manager that proves your productivity to clients.
@@ -540,7 +544,7 @@ export function LandingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; 2025 TaskProof. All rights reserved.</p>
+            <p>&copy; 2025 Workoto. All rights reserved.</p>
           </div>
         </div>
       </footer>

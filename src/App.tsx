@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckSquare, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { NotificationPreferences } from './components/onboarding/NotificationPreferences';
 import { SimpleSettings } from './components/SimpleSettings';
@@ -93,6 +94,7 @@ function TaskManager() {
 
 function AppContent() {
   const { isAuthenticated, isLoading, needsOnboarding, completeOnboarding } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
 
   if (isLoading) {
     return (
@@ -102,9 +104,12 @@ function AppContent() {
     );
   }
 
-  // Show auth page if not authenticated
+  // Show landing page or auth page if not authenticated
   if (!isAuthenticated) {
-    return <AuthPage />;
+    if (showAuth) {
+      return <AuthPage onBackToLanding={() => setShowAuth(false)} />;
+    }
+    return <LandingPage onGetStarted={() => setShowAuth(true)} />;
   }
 
   // Show notification preferences if user needs onboarding
