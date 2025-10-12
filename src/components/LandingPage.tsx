@@ -541,6 +541,12 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
                 <li><a href="#" className="hover:text-white">Privacy</a></li>
                 <li><a href="#" className="hover:text-white">Terms</a></li>
               </ul>
+              <div className="mt-6 space-y-2 text-sm">
+                <p className="text-white font-semibold mb-2">Contact</p>
+                <p>280 Merrylands Road<br />Sydney, NSW 2160<br />Australia</p>
+                <p><a href="tel:+61455221300" className="hover:text-white">+61 455 221 300</a></p>
+                <p><a href="mailto:hello@workoto.app" className="hover:text-white">hello@workoto.app</a></p>
+              </div>
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
