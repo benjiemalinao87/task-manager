@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckSquare, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
@@ -53,11 +53,6 @@ function TaskManager() {
             </button>
           </div>
 
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <CheckSquare className="w-10 h-10 text-blue-600" />
-            <h1 className="text-4xl font-bold text-gray-800">Task Manager</h1>
-          </div>
-          <p className="text-gray-600">Create tasks with AI summaries and automatic email notifications</p>
         </header>
 
         {/* Clock In/Out Widget */}

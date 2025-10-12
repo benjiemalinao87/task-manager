@@ -14,6 +14,8 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
     notify_task_completed: true,
     notify_daily_summary: false,
     notify_weekly_summary: false,
+    email_subject_task_created: '',
+    email_subject_task_completed: '',
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -32,6 +34,8 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
         notify_task_completed: !!data.notify_task_completed,
         notify_daily_summary: !!data.notify_daily_summary,
         notify_weekly_summary: !!data.notify_weekly_summary,
+        email_subject_task_created: data.email_subject_task_created || '',
+        email_subject_task_completed: data.email_subject_task_completed || '',
       });
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -51,6 +55,8 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
         notify_task_completed: settings.notify_task_completed ? 1 : 0,
         notify_daily_summary: settings.notify_daily_summary ? 1 : 0,
         notify_weekly_summary: settings.notify_weekly_summary ? 1 : 0,
+        email_subject_task_created: settings.email_subject_task_created,
+        email_subject_task_completed: settings.email_subject_task_completed,
       });
       setMessage('✅ Settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
@@ -111,6 +117,46 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
             <p className="text-sm text-gray-500 mt-1">
               Email address to receive task notifications
             </p>
+          </div>
+
+          {/* Email Subject Lines */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Email Subject Lines</h3>
+            <div className="space-y-4">
+              {/* Task Created Subject */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Task Created Subject
+                </label>
+                <input
+                  type="text"
+                  value={settings.email_subject_task_created}
+                  onChange={(e) => setSettings({ ...settings, email_subject_task_created: e.target.value })}
+                  placeholder="New Task Created: {task_name}"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Use {'{'}task_name{'}'} to include the task name. Leave empty for default.
+                </p>
+              </div>
+
+              {/* Task Completed Subject */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Task Completed Subject
+                </label>
+                <input
+                  type="text"
+                  value={settings.email_subject_task_completed}
+                  onChange={(e) => setSettings({ ...settings, email_subject_task_completed: e.target.value })}
+                  placeholder="Task Completed: {task_name}"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Use {'{'}task_name{'}'} to include the task name. Leave empty for default.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Notification Preferences */}

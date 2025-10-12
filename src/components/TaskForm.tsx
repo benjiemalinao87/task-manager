@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 
 interface TaskFormProps {
@@ -8,6 +8,7 @@ interface TaskFormProps {
 
 export function TaskForm({ onTaskCreated }: TaskFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [formData, setFormData] = useState({
     taskName: '',
     description: '',
@@ -34,6 +35,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         taskLink: '',
       });
 
+      setIsExpanded(false);
       onTaskCreated();
     } catch (error) {
       console.error('Error creating task:', error);
@@ -44,10 +46,26 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Task</h2>
+    <div className="bg-white rounded-lg shadow-md mb-6">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full p-6 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-lg"
+      >
+        <div className="flex items-center gap-3">
+          <Plus className="w-6 h-6 text-blue-600" />
+          <h2 className="text-2xl font-bold text-gray-800">Create New Task</h2>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="w-6 h-6 text-gray-600" />
+        ) : (
+          <ChevronDown className="w-6 h-6 text-gray-600" />
+        )}
+      </button>
 
-      <div className="space-y-4">
+      {isExpanded && (
+        <form onSubmit={handleSubmit} className="px-6 pb-6">
+          <div className="space-y-4">
         <div>
           <label htmlFor="taskName" className="block text-sm font-medium text-gray-700 mb-1">
             Task Name *
@@ -124,7 +142,9 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             </>
           )}
         </button>
-      </div>
-    </form>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }

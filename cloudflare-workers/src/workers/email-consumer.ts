@@ -10,9 +10,10 @@ export default {
       try {
         const { type, userId, email, task } = message.body;
 
-        // Get user's notification preferences
+        // Get user's notification preferences and custom email subjects
         const settings = await env.DB.prepare(`
-          SELECT notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary
+          SELECT notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary,
+                 email_subject_task_created, email_subject_task_completed
           FROM settings 
           WHERE user_id = ?
         `).bind(userId).first<{
@@ -20,6 +21,8 @@ export default {
           notify_task_completed: number;
           notify_daily_summary: number;
           notify_weekly_summary: number;
+          email_subject_task_created: string | null;
+          email_subject_task_completed: string | null;
         }>();
 
         // Check if user wants this type of notification
@@ -43,12 +46,22 @@ export default {
         // Build email based on type
         switch (type) {
           case 'task_created':
-            subject = `New Task: ${task?.name}`;
+            // Use custom subject if available, otherwise use default
+            if (settings?.email_subject_task_created) {
+              subject = settings.email_subject_task_created.replace('{task_name}', task?.name || '');
+            } else {
+              subject = `New Task: ${task?.name}`;
+            }
             emailHtml = buildTaskCreatedEmail(task!);
             break;
 
           case 'task_completed':
-            subject = `Task Completed: ${task?.name}`;
+            // Use custom subject if available, otherwise use default
+            if (settings?.email_subject_task_completed) {
+              subject = settings.email_subject_task_completed.replace('{task_name}', task?.name || '');
+            } else {
+              subject = `Task Completed: ${task?.name}`;
+            }
             emailHtml = buildTaskCompletedEmail(task!);
             break;
 
