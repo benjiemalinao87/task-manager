@@ -134,101 +134,138 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
 
   if (tasks.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-8 text-center">
-        <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-        <p className="text-gray-600">No active tasks. Create a task above to get started!</p>
+      <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg p-12 text-center border-2 border-blue-200">
+        <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="w-10 h-10 text-blue-600" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">No Active Tasks</h3>
+        <p className="text-gray-600 text-lg">Create a task above to get started!</p>
+        <p className="text-sm text-gray-500 mt-3">Tasks you create will appear here with live timers</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">Active Tasks</h2>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+        <h2 className="text-2xl font-bold text-gray-800 px-4">Active Tasks</h2>
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+      </div>
+      
       {tasks.map((task) => (
         <div
           key={task.id}
-          className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-2 border-orange-400"
+          className="bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all border-2 border-orange-300"
         >
-          <div className="flex items-start justify-between mb-3">
-            <h3 className="text-xl font-semibold text-gray-800">{task.task_name}</h3>
-            <span className="flex items-center gap-1 text-sm text-orange-600 bg-orange-50 px-3 py-1 rounded-full font-medium">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-5">
+            <h3 className="text-2xl font-bold text-gray-800 flex-1">{task.task_name}</h3>
+            <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200">
               <Clock className="w-4 h-4 animate-pulse" />
               In Progress
             </span>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl p-6 mb-4 shadow-lg">
+          {/* Timer Display */}
+          <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
             <div className="text-center">
-              <p className="text-sm font-medium mb-2 opacity-90">Time Running</p>
-              <p className="text-5xl font-bold font-mono tracking-wider">{calculateElapsedTime(task.started_at)}</p>
-              <p className="text-xs mt-2 opacity-75">HH:MM:SS</p>
+              <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">Time Running</p>
+              <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at)}</p>
+              <p className="text-xs opacity-75 font-medium">Hours : Minutes : Seconds</p>
             </div>
           </div>
 
-          <p className="text-gray-600 mb-4">{task.description}</p>
+          {/* Description */}
+          <div className="mb-6">
+            <p className="text-gray-700 leading-relaxed">{task.description}</p>
+          </div>
 
+          {/* AI Summary */}
           {task.ai_summary && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm font-medium text-blue-800 mb-1">AI Summary</p>
-              <p className="text-sm text-blue-900">{task.ai_summary}</p>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-sm">
+              <p className="text-sm font-bold text-blue-900 mb-2 uppercase tracking-wide">✨ AI Summary</p>
+              <p className="text-sm text-blue-800 leading-relaxed">{task.ai_summary}</p>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
-            <div className="flex items-center gap-2 text-gray-700">
-              <Clock className="w-4 h-4 text-gray-500" />
-              <span className="font-medium">Estimated:</span>
-              <span>{task.estimated_time}</span>
-            </div>
-
-            {task.actual_time && (
-              <div className="flex items-center gap-2 text-gray-700">
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className="font-medium">Actual:</span>
-                <span>{task.actual_time}</span>
+          {/* Task Metadata */}
+          <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center gap-3 text-gray-700">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-medium">Estimated Time</span>
+                  <span className="font-semibold">{task.estimated_time}</span>
+                </div>
               </div>
-            )}
 
-            {task.task_link && (
-              <div className="flex items-center gap-2 text-gray-700 sm:col-span-2">
-                <LinkIcon className="w-4 h-4 text-gray-500" />
-                <a
-                  href={task.task_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline truncate"
-                >
-                  {task.task_link}
-                </a>
+              {task.actual_time && (
+                <div className="flex items-center gap-3 text-gray-700">
+                  <div className="bg-green-100 p-2 rounded-lg">
+                    <Clock className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div>
+                    <span className="block text-xs text-gray-500 font-medium">Actual Time</span>
+                    <span className="font-semibold">{task.actual_time}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                <div className="bg-purple-100 p-2 rounded-lg">
+                  <Calendar className="w-4 h-4 text-purple-600" />
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 font-medium">Created</span>
+                  <span className="font-semibold text-sm">{formatDateTimePST(task.created_at)}</span>
+                </div>
               </div>
-            )}
 
-            <div className="flex items-center gap-2 text-gray-500 text-xs sm:col-span-2">
-              <Calendar className="w-4 h-4" />
-              <span>Created: {formatDateTimePST(task.created_at)}</span>
+              {task.task_link && (
+                <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                  <div className="bg-indigo-100 p-2 rounded-lg">
+                    <LinkIcon className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs text-gray-500 font-medium mb-1">Task Link</span>
+                    <a
+                      href={task.task_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium"
+                    >
+                      {task.task_link}
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex gap-2">
+          {/* Action Buttons */}
+          <div className="flex gap-3">
             {showNoteInput === task.id ? (
-              <div className="flex-1 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Add Note (optional)
-                </label>
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Any additional notes about this task completion..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
-              </div>
-                <div className="flex gap-2">
+              <div className="flex-1 space-y-4">
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    📝 Add Completion Note (Optional)
+                  </label>
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="Any additional notes about this task completion..."
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none transition-all"
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-3">
                   <button
                     onClick={() => handleCompleteTask(task, noteText)}
                     disabled={completingTaskId === task.id}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
                   >
                     {completingTaskId === task.id ? (
                       <>
@@ -245,7 +282,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                   <button
                     onClick={handleCancelNote}
                     disabled={completingTaskId === task.id}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
@@ -255,7 +292,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
               <button
                 onClick={() => handleShowNoteInput(task.id)}
                 disabled={completingTaskId === task.id}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
               >
                 <CheckCircle2 className="w-5 h-5" />
                 Complete Task
@@ -264,7 +301,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
             <button
               onClick={() => handleDeleteTask(task.id)}
               disabled={deletingTaskId === task.id || completingTaskId === task.id}
-              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 px-5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
               title="Delete task"
             >
               {deletingTaskId === task.id ? (

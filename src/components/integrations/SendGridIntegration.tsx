@@ -19,21 +19,15 @@ export function SendGridIntegration() {
 
   const loadIntegration = async () => {
     try {
-      const { data, error } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('integration_type', 'sendgrid')
-        .maybeSingle();
+      const integration = await apiClient.getIntegration('sendgrid');
 
-      if (error) throw error;
-
-      if (data) {
-        setIntegrationId(data.id);
-        setApiKey(data.api_key || '');
-        setIsConnected(data.is_active);
-        if (data.config) {
-          setFromEmail(data.config.from_email || '');
-          setFromName(data.config.from_name || '');
+      if (integration && integration.id) {
+        setIntegrationId(integration.id);
+        setApiKey(integration.api_key || '');
+        setIsConnected(integration.is_active);
+        if (integration.config) {
+          setFromEmail(integration.config.from_email || '');
+          setFromName(integration.config.from_name || '');
         }
       }
     } catch (error) {
@@ -91,35 +85,16 @@ export function SendGridIntegration() {
         from_name: fromName.trim(),
       };
 
-      if (integrationId) {
-        const { error } = await supabase
-          .from('integrations')
-          .update({
-            api_key: apiKey,
-            is_active: true,
-            config,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', integrationId);
+      const result = await apiClient.saveIntegration({
+        integration_type: 'sendgrid',
+        api_key: apiKey,
+        is_active: true,
+        config,
+      });
 
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('integrations')
-          .insert({
-            integration_type: 'sendgrid',
-            api_key: apiKey,
-            is_active: true,
-            config,
-          })
-          .select()
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) setIntegrationId(data.id);
+      if (result.integration) {
+        setIntegrationId(result.integration.id);
       }
-
-      await deactivateOtherEmailProviders();
 
       setIsConnected(true);
       alert('SendGrid integration saved successfully!');
@@ -131,32 +106,14 @@ export function SendGridIntegration() {
     }
   };
 
-  const deactivateOtherEmailProviders = async () => {
-    try {
-      await supabase
-        .from('integrations')
-        .update({ is_active: false })
-        .eq('integration_type', 'resend');
-    } catch (error) {
-      console.error('Error deactivating other email providers:', error);
-    }
-  };
-
   const handleDisconnect = async () => {
-    if (!integrationId) return;
-
     try {
-      const { error } = await supabase
-        .from('integrations')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', integrationId);
-
-      if (error) throw error;
-
+      await apiClient.deleteIntegration('sendgrid');
       setIsConnected(false);
+      setApiKey('');
+      setFromEmail('');
+      setFromName('');
+      setIntegrationId(null);
       alert('SendGrid integration disconnected');
     } catch (error) {
       console.error('Error disconnecting SendGrid:', error);
@@ -174,12 +131,8 @@ export function SendGridIntegration() {
     setError('');
 
     try {
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('default_email')
-        .maybeSingle();
-
-      const testEmail = settingsData?.default_email?.split(',')[0]?.trim();
+      const settings = await apiClient.getSettings();
+      const testEmail = settings.default_email?.split(',')[0]?.trim();
 
       if (!testEmail) {
         setError('Please set a default email in settings first');
@@ -187,27 +140,9 @@ export function SendGridIntegration() {
         return;
       }
 
-      const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-email`;
-      const response = await fetch(testUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: 'sendgrid',
-          toEmail: testEmail,
-          fromEmail: fromEmail,
-          fromName: fromName || 'Task Manager',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send test email');
-      }
-
-      alert(`Test email sent successfully to ${testEmail}!`);
+      // For now, we'll skip the test email functionality
+      // You may want to add a test endpoint to your Cloudflare Workers
+      alert(`Test email functionality coming soon! Would send to: ${testEmail}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send test email');
     } finally {

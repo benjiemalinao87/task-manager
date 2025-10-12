@@ -1,3 +1,5 @@
+import { ListTodo, History } from 'lucide-react';
+
 interface TabNavigationProps {
   activeTab: 'manager' | 'history';
   onTabChange: (tab: 'manager' | 'history') => void;
@@ -5,26 +7,28 @@ interface TabNavigationProps {
 
 export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   return (
-    <div className="bg-white rounded-lg shadow-md mb-6 p-1 flex gap-1">
+    <div className="bg-white rounded-2xl shadow-lg p-2 flex gap-2 border border-gray-100">
       <button
         onClick={() => onTabChange('manager')}
-        className={`flex-1 py-3 px-6 rounded-md font-semibold transition-all ${
+        className={`flex-1 py-4 px-8 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
           activeTab === 'manager'
-            ? 'bg-blue-600 text-white shadow-sm'
+            ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md transform scale-[1.02]'
             : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
         }`}
       >
-        Task Manager
+        <ListTodo className="w-5 h-5" />
+        <span>Task Manager</span>
       </button>
       <button
         onClick={() => onTabChange('history')}
-        className={`flex-1 py-3 px-6 rounded-md font-semibold transition-all ${
+        className={`flex-1 py-4 px-8 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
           activeTab === 'history'
-            ? 'bg-blue-600 text-white shadow-sm'
+            ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md transform scale-[1.02]'
             : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
         }`}
       >
-        Task History
+        <History className="w-5 h-5" />
+        <span>Task History</span>
       </button>
     </div>
   );

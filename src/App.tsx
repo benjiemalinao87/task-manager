@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Settings as SettingsIcon, LogOut, CheckSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
@@ -31,42 +31,57 @@ function TaskManager() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <header className="text-center mb-8 relative">
-          <div className="absolute right-0 top-0 flex items-center gap-3">
-            <div className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg">
-              👤 {user?.name || user?.email}
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header with Branding */}
+        <header className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-xl shadow-md">
+              <CheckSquare className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Workoto</h1>
+              <p className="text-xs text-gray-500">Task Management System</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-600 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-100">
+              <span className="text-gray-400 mr-2">👤</span>
+              <span className="font-medium">{user?.name || user?.email}</span>
             </div>
             <button
               onClick={() => setShowSettings(true)}
-              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-white rounded-lg transition-colors"
+              className="p-2.5 text-gray-600 hover:text-gray-800 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
               title="Settings"
             >
-              <SettingsIcon className="w-6 h-6" />
+              <SettingsIcon className="w-5 h-5" />
             </button>
             <button
               onClick={handleLogout}
-              className="p-2 text-gray-600 hover:text-red-600 hover:bg-white rounded-lg transition-colors"
+              className="p-2.5 text-gray-600 hover:text-red-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
               title="Logout"
             >
-              <LogOut className="w-6 h-6" />
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
-
         </header>
 
         {/* Clock In/Out Widget */}
-        <div className="mb-6">
+        <div className="mb-8">
           <ClockInOut />
         </div>
 
-        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
 
+        {/* Main Content Area */}
         {activeTab === 'manager' ? (
-          <>
+          <div className="space-y-8">
             <TaskForm onTaskCreated={handleTaskCreated} />
             <TaskList refreshTrigger={refreshTrigger} />
-          </>
+          </div>
         ) : (
           <TaskHistory refreshTrigger={refreshTrigger} />
         )}

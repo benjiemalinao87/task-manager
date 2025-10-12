@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { apiClient } from '../../lib/api-client';
 
 interface AsanaProject {
@@ -7,14 +7,21 @@ interface AsanaProject {
   name: string;
 }
 
+interface AsanaWorkspace {
+  gid: string;
+  name: string;
+}
+
 export function AsanaIntegration() {
   const [apiKey, setApiKey] = useState('');
   const [defaultAssignee, setDefaultAssignee] = useState('');
-  const [workspaceId, setWorkspaceId] = useState('');
+  const [workspaces, setWorkspaces] = useState<AsanaWorkspace[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState('');
   const [projects, setProjects] = useState<AsanaProject[]>([]);
   const [selectedProject, setSelectedProject] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingWorkspaces, setIsFetchingWorkspaces] = useState(false);
   const [isFetchingProjects, setIsFetchingProjects] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -26,25 +33,19 @@ export function AsanaIntegration() {
 
   const loadIntegration = async () => {
     try {
-      const { data, error } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('integration_type', 'asana')
-        .maybeSingle();
+      const integration = await apiClient.getIntegration('asana');
 
-      if (error) throw error;
-
-      if (data) {
-        setIntegrationId(data.id);
-        setApiKey(data.api_key || '');
-        setIsConnected(data.is_active);
-        if (data.config) {
-          setSelectedProject(data.config.project_gid || '');
-          setDefaultAssignee(data.config.default_assignee_email || '');
-          setWorkspaceId(data.config.workspace_gid || '');
+      if (integration && integration.id) {
+        setIntegrationId(integration.id);
+        setApiKey(integration.api_key || '');
+        setIsConnected(integration.is_active);
+        if (integration.config) {
+          setSelectedProject(integration.config.project_gid || '');
+          setDefaultAssignee(integration.config.default_assignee_email || '');
+          setSelectedWorkspace(integration.config.workspace_gid || '');
         }
-        if (data.is_active && data.api_key) {
-          await fetchProjects(data.api_key);
+        if (integration.is_active && integration.api_key) {
+          await fetchWorkspaces();
         }
       }
     } catch (error) {
@@ -52,31 +53,31 @@ export function AsanaIntegration() {
     }
   };
 
-  const fetchProjects = async (token: string) => {
-    setIsFetchingProjects(true);
+  const fetchWorkspaces = async () => {
+    setIsFetchingWorkspaces(true);
     setError('');
     try {
-      const projectsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-asana-projects`;
-      const response = await fetch(projectsUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ apiToken: token }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch projects. Please check your API token.');
-      }
-
-      const data = await response.json();
-      setProjects(data.projects || []);
+      const { workspaces: fetchedWorkspaces } = await apiClient.getAsanaWorkspaces();
+      setWorkspaces(fetchedWorkspaces || []);
       setIsConnected(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to Asana');
       setIsConnected(false);
+    } finally {
+      setIsFetchingWorkspaces(false);
+    }
+  };
+
+  const fetchProjects = async (workspaceId: string) => {
+    if (!workspaceId) return;
+
+    setIsFetchingProjects(true);
+    setError('');
+    try {
+      const { projects: fetchedProjects } = await apiClient.getAsanaProjects(workspaceId);
+      setProjects(fetchedProjects || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch projects');
     } finally {
       setIsFetchingProjects(false);
     }
@@ -89,13 +90,41 @@ export function AsanaIntegration() {
     }
 
     setIsLoading(true);
-    await fetchProjects(apiKey);
-    setIsLoading(false);
+    setError('');
+
+    try {
+      // Test the API key first
+      const testResult = await apiClient.testAsanaConnection(apiKey);
+
+      if (testResult.success) {
+        // Save the integration with just the API key for now
+        await apiClient.saveIntegration({
+          integration_type: 'asana',
+          api_key: apiKey,
+          is_active: false, // Not fully active until workspace and project are selected
+          config: {},
+        });
+
+        // Fetch workspaces
+        await loadIntegration();
+        setIsConnected(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect to Asana');
+      setIsConnected(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSave = async () => {
     if (!apiKey.trim()) {
       setError('Please enter your Asana API token');
+      return;
+    }
+
+    if (!selectedWorkspace) {
+      setError('Please select a workspace');
       return;
     }
 
@@ -111,36 +140,15 @@ export function AsanaIntegration() {
       const config = {
         project_gid: selectedProject,
         default_assignee_email: defaultAssignee.trim(),
-        workspace_gid: workspaceId.trim(),
+        workspace_gid: selectedWorkspace,
       };
 
-      if (integrationId) {
-        const { error } = await supabase
-          .from('integrations')
-          .update({
-            api_key: apiKey,
-            is_active: true,
-            config,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', integrationId);
-
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('integrations')
-          .insert({
-            integration_type: 'asana',
-            api_key: apiKey,
-            is_active: true,
-            config,
-          })
-          .select()
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) setIntegrationId(data.id);
-      }
+      await apiClient.saveIntegration({
+        integration_type: 'asana',
+        api_key: apiKey,
+        is_active: true,
+        config,
+      });
 
       setIsConnected(true);
       alert('Asana integration saved successfully!');
@@ -153,24 +161,29 @@ export function AsanaIntegration() {
   };
 
   const handleDisconnect = async () => {
-    if (!integrationId) return;
-
     try {
-      const { error } = await supabase
-        .from('integrations')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', integrationId);
-
-      if (error) throw error;
-
+      await apiClient.deleteIntegration('asana');
       setIsConnected(false);
+      setApiKey('');
+      setSelectedWorkspace('');
+      setSelectedProject('');
+      setWorkspaces([]);
+      setProjects([]);
+      setIntegrationId(null);
       alert('Asana integration disconnected');
     } catch (error) {
       console.error('Error disconnecting Asana:', error);
       setError('Failed to disconnect. Please try again.');
+    }
+  };
+
+  const handleWorkspaceChange = async (workspaceId: string) => {
+    setSelectedWorkspace(workspaceId);
+    setSelectedProject(''); // Reset project when workspace changes
+    if (workspaceId) {
+      await fetchProjects(workspaceId);
+    } else {
+      setProjects([]);
     }
   };
 
@@ -224,6 +237,7 @@ export function AsanaIntegration() {
 
       {!isConnected && (
         <button
+          type="button"
           onClick={handleConnect}
           disabled={isLoading || !apiKey.trim()}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -239,53 +253,67 @@ export function AsanaIntegration() {
         </button>
       )}
 
-      {(isConnected || isFetchingProjects) && (
+      {isConnected && (
         <>
           <div>
-            <label htmlFor="asanaProject" className="block text-sm font-medium text-gray-700 mb-2">
-              Default Project *
+            <label htmlFor="asanaWorkspace" className="block text-sm font-medium text-gray-700 mb-2">
+              Workspace *
             </label>
-            {isFetchingProjects ? (
+            {isFetchingWorkspaces ? (
               <div className="flex items-center gap-2 text-gray-600 py-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Loading projects...</span>
+                <span className="text-sm">Loading workspaces...</span>
               </div>
             ) : (
               <select
-                id="asanaProject"
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
+                id="asanaWorkspace"
+                value={selectedWorkspace}
+                onChange={(e) => handleWorkspaceChange(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Select a project</option>
-                {projects.map((project) => (
-                  <option key={project.gid} value={project.gid}>
-                    {project.name}
+                <option value="">Select a workspace</option>
+                {workspaces.map((workspace) => (
+                  <option key={workspace.gid} value={workspace.gid}>
+                    {workspace.name}
                   </option>
                 ))}
               </select>
             )}
             <p className="text-xs text-gray-500 mt-2">
-              Tasks created in this app will be added to this Asana project
+              Select the workspace where you want to create tasks
             </p>
           </div>
 
-          <div>
-            <label htmlFor="workspaceId" className="block text-sm font-medium text-gray-700 mb-2">
-              Workspace ID *
-            </label>
-            <input
-              type="text"
-              id="workspaceId"
-              value={workspaceId}
-              onChange={(e) => setWorkspaceId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="1204857085390737"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Your Asana workspace ID (find it in your workspace URL or settings)
-            </p>
-          </div>
+          {selectedWorkspace && (
+            <div>
+              <label htmlFor="asanaProject" className="block text-sm font-medium text-gray-700 mb-2">
+                Default Project *
+              </label>
+              {isFetchingProjects ? (
+                <div className="flex items-center gap-2 text-gray-600 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading projects...</span>
+                </div>
+              ) : (
+                <select
+                  id="asanaProject"
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a project</option>
+                  {projects.map((project) => (
+                    <option key={project.gid} value={project.gid}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Tasks created in this app will be added to this Asana project
+              </p>
+            </div>
+          )}
 
           <div>
             <label htmlFor="defaultAssignee" className="block text-sm font-medium text-gray-700 mb-2">
@@ -306,8 +334,9 @@ export function AsanaIntegration() {
 
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={handleSave}
-              disabled={isSaving || !selectedProject}
+              disabled={isSaving || !selectedProject || !selectedWorkspace}
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (
@@ -320,6 +349,7 @@ export function AsanaIntegration() {
               )}
             </button>
             <button
+              type="button"
               onClick={handleDisconnect}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
             >
