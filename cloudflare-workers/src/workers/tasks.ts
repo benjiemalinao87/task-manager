@@ -28,6 +28,88 @@ tasks.get('/', async (c) => {
   }
 });
 
+// Helper function to create Asana task
+async function createAsanaTask(
+  env: Env,
+  userId: string,
+  taskName: string,
+  description: string
+): Promise<string | null> {
+  try {
+    // Get active Asana integration
+    const integration = await env.DB.prepare(
+      'SELECT api_key, config FROM integrations WHERE user_id = ? AND integration_type = ? AND is_active = 1'
+    ).bind(userId, 'asana').first<{ api_key: string; config: string }>();
+
+    if (!integration || !integration.api_key) {
+      console.log('No active Asana integration found');
+      return null;
+    }
+
+    const config = typeof integration.config === 'string'
+      ? JSON.parse(integration.config)
+      : integration.config;
+
+    const projectGid = config?.project_gid;
+    const assigneeEmail = config?.default_assignee_email;
+
+    if (!projectGid) {
+      console.log('No Asana project configured');
+      return null;
+    }
+
+    // Create task in Asana
+    const asanaPayload: any = {
+      data: {
+        name: taskName,
+        notes: description,
+        projects: [projectGid],
+      }
+    };
+
+    // Add assignee if configured
+    if (assigneeEmail) {
+      // First, get user GID from email
+      const userResponse = await fetch(
+        `https://app.asana.com/api/1.0/workspaces/${config.workspace_gid}/users/${assigneeEmail}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${integration.api_key}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        asanaPayload.data.assignee = userData.data.gid;
+      }
+    }
+
+    const response = await fetch('https://app.asana.com/api/1.0/tasks', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${integration.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(asanaPayload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Asana task creation failed:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data.gid;
+
+  } catch (error) {
+    console.error('Error creating Asana task:', error);
+    return null;
+  }
+}
+
 // POST /api/tasks - Create task
 tasks.post('/', async (c) => {
   const auth = await requireAuth(c.req.raw, c.env);
@@ -43,15 +125,18 @@ tasks.post('/', async (c) => {
     const taskId = generateId();
     const now = getCurrentTimestamp();
 
+    // Try to create Asana task first
+    const asanaTaskId = await createAsanaTask(c.env, auth.userId, taskName, description);
+
     await c.env.DB.prepare(`
       INSERT INTO tasks (
         id, user_id, task_name, description, estimated_time,
-        task_link, started_at, created_at, updated_at
+        task_link, asana_task_id, started_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       taskId, auth.userId, taskName, description, estimatedTime,
-      taskLink || null, now, now, now
+      taskLink || null, asanaTaskId || null, now, now, now
     ).run();
 
     const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
@@ -77,6 +162,46 @@ tasks.post('/', async (c) => {
     return c.json({ error: 'Failed to create task' }, 500);
   }
 });
+
+// Helper function to complete Asana task
+async function completeAsanaTask(
+  env: Env,
+  userId: string,
+  asanaTaskId: string
+): Promise<boolean> {
+  try {
+    const integration = await env.DB.prepare(
+      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ? AND is_active = 1'
+    ).bind(userId, 'asana').first<{ api_key: string }>();
+
+    if (!integration || !integration.api_key) {
+      return false;
+    }
+
+    const response = await fetch(`https://app.asana.com/api/1.0/tasks/${asanaTaskId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${integration.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: {
+          completed: true
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to complete Asana task:', await response.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error completing Asana task:', error);
+    return false;
+  }
+}
 
 // PATCH /api/tasks/:id - Update/Complete task
 tasks.patch('/:id', async (c) => {
@@ -107,6 +232,11 @@ tasks.patch('/:id', async (c) => {
       if (status === 'completed') {
         updates.push('completed_at = ?');
         bindings.push(now);
+
+        // Complete task in Asana if it exists
+        if (task.asana_task_id) {
+          await completeAsanaTask(c.env, auth.userId, task.asana_task_id as string);
+        }
 
         // Calculate actual time if not provided
         if (!actualTime && task.started_at) {
