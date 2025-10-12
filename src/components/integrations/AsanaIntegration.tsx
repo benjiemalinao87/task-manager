@@ -39,13 +39,25 @@ export function AsanaIntegration() {
         setIntegrationId(integration.id);
         setApiKey(integration.api_key || '');
         setIsConnected(integration.is_active);
+
+        const savedWorkspace = integration.config?.workspace_gid || '';
+        const savedProject = integration.config?.project_gid || '';
+        const savedAssignee = integration.config?.default_assignee_email || '';
+
         if (integration.config) {
-          setSelectedProject(integration.config.project_gid || '');
-          setDefaultAssignee(integration.config.default_assignee_email || '');
-          setSelectedWorkspace(integration.config.workspace_gid || '');
+          setSelectedProject(savedProject);
+          setDefaultAssignee(savedAssignee);
+          setSelectedWorkspace(savedWorkspace);
         }
-        if (integration.is_active && integration.api_key) {
+
+        // Fetch workspaces if we have an API key
+        if (integration.api_key) {
           await fetchWorkspaces();
+
+          // If we have a saved workspace, also fetch its projects
+          if (savedWorkspace) {
+            await fetchProjects(savedWorkspace);
+          }
         }
       }
     } catch (error) {
