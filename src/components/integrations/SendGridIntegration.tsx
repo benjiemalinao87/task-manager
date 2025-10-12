@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, Loader2, AlertCircle, Mail } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 
 export function SendGridIntegration() {
   const [apiKey, setApiKey] = useState('');

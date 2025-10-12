@@ -1,0 +1,755 @@
+import type { Env, EmailMessage } from '../types';
+
+// Default email configuration (YOUR Resend account)
+const DEFAULT_FROM_EMAIL = 'task@customerconnects.app';
+const DEFAULT_FROM_NAME = 'Task Manager';
+
+export default {
+  async queue(batch: MessageBatch<EmailMessage>, env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      try {
+        const { type, userId, email, task } = message.body;
+
+        // Get user's notification preferences
+        const settings = await env.DB.prepare(`
+          SELECT notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary
+          FROM settings 
+          WHERE user_id = ?
+        `).bind(userId).first<{
+          notify_task_created: number;
+          notify_task_completed: number;
+          notify_daily_summary: number;
+          notify_weekly_summary: number;
+        }>();
+
+        // Check if user wants this type of notification
+        if (settings) {
+          if (type === 'task_created' && !settings.notify_task_created) {
+            console.log(`User ${userId} has disabled task_created notifications, skipping`);
+            message.ack();
+            continue;
+          }
+          if (type === 'task_completed' && !settings.notify_task_completed) {
+            console.log(`User ${userId} has disabled task_completed notifications, skipping`);
+            message.ack();
+            continue;
+          }
+          // Future: Check notify_daily_summary and notify_weekly_summary
+        }
+
+        let emailHtml = '';
+        let subject = '';
+
+        // Build email based on type
+        switch (type) {
+          case 'task_created':
+            subject = `New Task: ${task?.name}`;
+            emailHtml = buildTaskCreatedEmail(task!);
+            break;
+
+          case 'task_completed':
+            subject = `Task Completed: ${task?.name}`;
+            emailHtml = buildTaskCompletedEmail(task!);
+            break;
+
+          case 'clock_in':
+            subject = 'Clocked In';
+            emailHtml = buildClockInEmail();
+            break;
+
+          default:
+            console.warn('Unknown email type:', type);
+            message.ack();
+            continue;
+        }
+
+        // Check if user has custom email integration configured
+        const userIntegration = await env.DB.prepare(`
+          SELECT integration_type, api_key, is_active 
+          FROM integrations 
+          WHERE user_id = ? 
+          AND integration_type IN ('sendgrid', 'resend') 
+          AND is_active = 1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).bind(userId).first();
+
+        let emailSent = false;
+
+        // If user has their own integration, use it
+        if (userIntegration && userIntegration.api_key) {
+          console.log(`Using custom ${userIntegration.integration_type} integration for user ${userId}`);
+          
+          if (userIntegration.integration_type === 'sendgrid') {
+            emailSent = await sendViaSendGrid(
+              email,
+              subject,
+              emailHtml,
+              userIntegration.api_key as string,
+              'noreply@yourdomain.com', // User's custom domain
+              'Task Manager'
+            );
+          } else if (userIntegration.integration_type === 'resend') {
+            emailSent = await sendViaResend(
+              email,
+              subject,
+              emailHtml,
+              userIntegration.api_key as string,
+              'noreply@yourdomain.com', // User's custom domain
+              'Task Manager'
+            );
+          }
+        } else {
+          // Use default Resend integration (customerconnects.com)
+          console.log(`Using default Resend integration for user ${userId}`);
+          emailSent = await sendViaResend(
+            email,
+            subject,
+            emailHtml,
+            env.RESEND_API_KEY,
+            DEFAULT_FROM_EMAIL,
+            DEFAULT_FROM_NAME
+          );
+        }
+
+        if (!emailSent) {
+          throw new Error('Email sending failed');
+        }
+
+        console.log(`Email sent successfully to ${email}`);
+        
+        // Mark as processed
+        message.ack();
+
+      } catch (error) {
+        console.error('Email sending failed:', error);
+        // Message will be retried automatically (up to 3 times)
+        message.retry();
+      }
+    }
+  }
+};
+
+// Send email via SendGrid
+async function sendViaSendGrid(
+  to: string,
+  subject: string,
+  html: string,
+  apiKey: string,
+  fromEmail: string,
+  fromName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }], subject }],
+        from: { email: fromEmail, name: fromName },
+        content: [{ type: 'text/html', value: html }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('SendGrid error:', errorText);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('SendGrid error:', error);
+    return false;
+  }
+}
+
+// Send email via Resend
+async function sendViaResend(
+  to: string,
+  subject: string,
+  html: string,
+  apiKey: string,
+  fromEmail: string,
+  fromName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${fromEmail}>`,
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Resend error:', errorText);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Resend error:', error);
+    return false;
+  }
+}
+
+function buildTaskCreatedEmail(task: any): string {
+  const createdDate = new Date();
+  const pstTime = createdDate.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  const sydneyTime = createdDate.toLocaleString('en-US', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background-color: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      padding: 50px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 36px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header p {
+      margin: 12px 0 0 0;
+      font-size: 18px;
+      opacity: 0.95;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .status-badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    }
+    .task-details {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+    }
+    .detail-row {
+      display: flex;
+      padding: 16px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #6b7280;
+      min-width: 140px;
+      font-size: 14px;
+    }
+    .detail-value {
+      color: #1f2937;
+      font-size: 15px;
+      flex: 1;
+    }
+    .time-section {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 8px;
+      padding: 24px;
+      margin: 30px 0;
+    }
+    .time-block {
+      margin-bottom: 16px;
+    }
+    .time-block:last-child {
+      margin-bottom: 0;
+    }
+    .time-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .time-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #78350f;
+    }
+    .footer {
+      text-align: center;
+      padding: 30px;
+      color: #6b7280;
+      font-size: 13px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+    .task-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 24px 0;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .ai-summary-box {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .ai-summary-box strong {
+      color: #1e40af;
+      font-size: 14px;
+    }
+    .ai-summary-box p {
+      margin: 8px 0 0 0;
+      color: #1e3a8a;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">✅</div>
+      <h1>New Task Created!</h1>
+      <p>Benjie Malinao just added a new task</p>
+    </div>
+
+    <div class="content">
+      <div style="text-align: center;">
+        <div class="status-badge">✨ Task Added to Workflow</div>
+      </div>
+
+      <div class="task-name">${task.name}</div>
+
+      ${task.aiSummary ? `
+      <div class="ai-summary-box">
+        <strong>🤖 AI INSIGHT</strong>
+        <p>${task.aiSummary}</p>
+      </div>
+      ` : ''}
+
+      <div class="task-details">
+        ${task.description ? `
+        <div class="detail-row">
+          <div class="detail-label">📝 Description:</div>
+          <div class="detail-value">${task.description}</div>
+        </div>
+        ` : ''}
+        
+        <div class="detail-row">
+          <div class="detail-label">⏱️ Estimated Time:</div>
+          <div class="detail-value"><strong>${task.estimatedTime}</strong></div>
+        </div>
+      </div>
+
+      <div class="time-section">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <strong style="font-size: 16px; color: #92400e;">🕒 Task Created At</strong>
+        </div>
+        
+        <div class="time-block">
+          <div class="time-label">🇺🇸 Pacific Time (PST/PDT)</div>
+          <div class="time-value">${pstTime}</div>
+        </div>
+
+        <div style="height: 12px;"></div>
+
+        <div class="time-block">
+          <div class="time-label">🇦🇺 Sydney Time (AEDT/AEST)</div>
+          <div class="time-value">${sydneyTime}</div>
+        </div>
+      </div>
+
+      <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin-top: 30px;">
+        <p style="margin: 0; color: #065f46; font-size: 15px;">
+          <strong>🎯 Pro Tip:</strong> Break down large tasks into smaller, manageable chunks for better tracking and motivation!
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p style="margin: 0;">This is an automated notification from Task Manager</p>
+      <p style="margin: 8px 0 0 0; color: #9ca3af;">Stay organized and crush your goals!</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function buildTaskCompletedEmail(task: any): string {
+  const completedDate = new Date();
+  const pstTime = completedDate.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  const sydneyTime = completedDate.toLocaleString('en-US', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background-color: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 50px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 36px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header p {
+      margin: 12px 0 0 0;
+      font-size: 18px;
+      opacity: 0.95;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .status-badge {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    }
+    .task-details {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+    }
+    .detail-row {
+      display: flex;
+      padding: 16px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+    .detail-label {
+      font-weight: 600;
+      color: #6b7280;
+      min-width: 140px;
+      font-size: 14px;
+    }
+    .detail-value {
+      color: #1f2937;
+      font-size: 15px;
+      flex: 1;
+    }
+    .time-section {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 8px;
+      padding: 24px;
+      margin: 30px 0;
+    }
+    .time-block {
+      margin-bottom: 16px;
+    }
+    .time-block:last-child {
+      margin-bottom: 0;
+    }
+    .time-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .time-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #78350f;
+    }
+    .footer {
+      text-align: center;
+      padding: 30px;
+      color: #6b7280;
+      font-size: 13px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+    .task-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 24px 0;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .ai-summary-box {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .ai-summary-box strong {
+      color: #1e40af;
+      font-size: 14px;
+    }
+    .ai-summary-box p {
+      margin: 8px 0 0 0;
+      color: #1e3a8a;
+      font-size: 14px;
+    }
+    .notes-box {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .notes-box strong {
+      color: #92400e;
+      font-size: 14px;
+    }
+    .notes-box p {
+      margin: 8px 0 0 0;
+      color: #78350f;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">🎉</div>
+      <h1>Task Completed!</h1>
+      <p>Benjie Malinao just finished a task</p>
+    </div>
+
+    <div class="content">
+      <div style="text-align: center;">
+        <div class="status-badge">✅ Successfully Completed</div>
+      </div>
+
+      <div class="task-name">${task.name}</div>
+
+      ${task.aiSummary && task.aiSummary !== 'Summary not available' ? `
+      <div class="ai-summary-box">
+        <strong>🤖 AI SUMMARY</strong>
+        <p>${task.aiSummary}</p>
+      </div>
+      ` : ''}
+
+      ${task.notes ? `
+      <div class="notes-box">
+        <strong>📝 COMPLETION NOTE</strong>
+        <p>${task.notes}</p>
+      </div>
+      ` : ''}
+
+      <div class="task-details">
+        ${task.description ? `
+        <div class="detail-row">
+          <div class="detail-label">📋 Description:</div>
+          <div class="detail-value">${task.description}</div>
+        </div>
+        ` : ''}
+        
+        <div class="detail-row">
+          <div class="detail-label">⏱️ Estimated Time:</div>
+          <div class="detail-value"><strong>${task.estimatedTime}</strong></div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">⏰ Actual Time:</div>
+          <div class="detail-value"><strong style="color: #10b981;">${task.actualTime}</strong></div>
+        </div>
+      </div>
+
+      <div class="time-section">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <strong style="font-size: 16px; color: #92400e;">⏰ Completed At</strong>
+        </div>
+        
+        <div class="time-block">
+          <div class="time-label">🇺🇸 Pacific Time (PST/PDT)</div>
+          <div class="time-value">${pstTime}</div>
+        </div>
+
+        <div style="height: 12px;"></div>
+
+        <div class="time-block">
+          <div class="time-label">🇦🇺 Sydney Time (AEDT/AEST)</div>
+          <div class="time-value">${sydneyTime}</div>
+        </div>
+      </div>
+
+      <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin-top: 30px;">
+        <p style="margin: 0; color: #065f46; font-size: 15px;">
+          <strong>🏆 Great Work!</strong> Celebrate your progress and keep the momentum going. You're crushing it!
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p style="margin: 0;">This is an automated notification from Task Manager</p>
+      <p style="margin: 8px 0 0 0; color: #9ca3af;">Stay organized and crush your goals!</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function buildClockInEmail(): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          line-height: 1.6;
+          color: #1f2937;
+          background-color: #f9fafb;
+          margin: 0;
+          padding: 0;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background-color: white;
+          padding: 20px;
+        }
+        .header {
+          background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+          color: white;
+          padding: 30px 20px;
+          text-align: center;
+          border-radius: 8px 8px 0 0;
+        }
+        .content {
+          padding: 20px;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0;">⏰ Clocked In</h1>
+        </div>
+        <div class="content">
+          <p style="font-size: 18px;">Work session started!</p>
+          <p style="color: #6b7280;">
+            Started at ${new Date().toLocaleTimeString()}
+          </p>
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+            You will receive a daily report when you clock out.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}

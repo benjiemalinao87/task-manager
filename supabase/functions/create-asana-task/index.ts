@@ -66,6 +66,7 @@ Deno.serve(async (req: Request) => {
 
     const projectGid = integration.config?.project_gid;
     const defaultAssigneeEmail = integration.config?.default_assignee_email;
+    const workspaceGid = integration.config?.workspace_gid;
 
     if (!projectGid) {
       return new Response(
@@ -77,27 +78,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // First, get the project details to find the workspace
-    let workspaceGid: string | null = null;
-    try {
-      const projectResponse = await fetch(
-        `https://app.asana.com/api/1.0/projects/${projectGid}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${integration.api_key}`,
-            "Accept": "application/json",
-          },
-        }
-      );
-
-      if (projectResponse.ok) {
-        const projectData = await projectResponse.json();
-        workspaceGid = projectData.data?.workspace?.gid;
-        console.log('Found workspace GID:', workspaceGid);
-      }
-    } catch (err) {
-      console.error("Failed to fetch project details:", err);
-    }
+    console.log('Using workspace GID:', workspaceGid);
+    console.log('Default assignee email:', defaultAssigneeEmail);
 
     let assigneeGid: string | null = null;
     if (defaultAssigneeEmail && workspaceGid) {

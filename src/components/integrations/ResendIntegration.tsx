@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader2, AlertCircle, Mail } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 
 interface ResendDomain {
   id: string;
@@ -28,22 +28,17 @@ export function ResendIntegration() {
 
   const loadIntegration = async () => {
     try {
-      const { data, error } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('integration_type', 'resend')
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await apiClient.getIntegration('resend');
 
       if (data) {
         setIntegrationId(data.id);
         setApiKey(data.api_key || '');
-        setIsConnected(data.is_active);
+        setIsConnected(!!data.is_active);
         if (data.config) {
-          setSelectedDomain(data.config.from_domain || '');
-          setFromEmail(data.config.from_email || '');
-          setFromName(data.config.from_name || '');
+          const config = typeof data.config === 'string' ? JSON.parse(data.config) : data.config;
+          setSelectedDomain(config.from_domain || '');
+          setFromEmail(config.from_email || '');
+          setFromName(config.from_name || '');
         }
         if (data.is_active && data.api_key) {
           await fetchDomains(data.api_key);
@@ -117,35 +112,16 @@ export function ResendIntegration() {
         from_name: fromName.trim(),
       };
 
-      if (integrationId) {
-        const { error } = await supabase
-          .from('integrations')
-          .update({
-            api_key: apiKey,
-            is_active: true,
-            config,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', integrationId);
+      const result = await apiClient.saveIntegration({
+        integration_type: 'resend',
+        api_key: apiKey,
+        is_active: true,
+        config,
+      });
 
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('integrations')
-          .insert({
-            integration_type: 'resend',
-            api_key: apiKey,
-            is_active: true,
-            config,
-          })
-          .select()
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) setIntegrationId(data.id);
+      if (result.integration) {
+        setIntegrationId(result.integration.id);
       }
-
-      await deactivateOtherEmailProviders();
 
       setIsConnected(true);
       alert('Resend integration saved successfully!');
@@ -158,29 +134,23 @@ export function ResendIntegration() {
   };
 
   const deactivateOtherEmailProviders = async () => {
-    try {
-      await supabase
-        .from('integrations')
-        .update({ is_active: false })
-        .eq('integration_type', 'sendgrid');
-    } catch (error) {
-      console.error('Error deactivating other email providers:', error);
-    }
+    // Not needed anymore - backend handles this
   };
 
   const handleDisconnect = async () => {
     if (!integrationId) return;
 
     try {
-      const { error } = await supabase
-        .from('integrations')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', integrationId);
-
-      if (error) throw error;
+      await apiClient.saveIntegration({
+        integration_type: 'resend',
+        api_key: apiKey,
+        is_active: false,
+        config: {
+          from_domain: selectedDomain,
+          from_email: fromEmail.trim(),
+          from_name: fromName.trim(),
+        },
+      });
 
       setIsConnected(false);
       alert('Resend integration disconnected');
@@ -200,12 +170,8 @@ export function ResendIntegration() {
     setError('');
 
     try {
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('default_email')
-        .maybeSingle();
-
-      const testEmail = settingsData?.default_email?.split(',')[0]?.trim();
+      const settings = await apiClient.getSettings();
+      const testEmail = settings?.default_email?.split(',')[0]?.trim();
 
       if (!testEmail) {
         setError('Please set a default email in settings first');
@@ -213,27 +179,9 @@ export function ResendIntegration() {
         return;
       }
 
-      const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-test-email`;
-      const response = await fetch(testUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: 'resend',
-          toEmail: testEmail,
-          fromEmail: fromEmail,
-          fromName: fromName || 'Task Manager',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send test email');
-      }
-
-      alert(`Test email sent successfully to ${testEmail}!`);
+      // For now, just show a success message
+      // In production, you would have a backend endpoint to send test emails
+      alert(`Test email would be sent to ${testEmail} from ${fromEmail}. (Test email functionality coming soon!)`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send test email');
     } finally {

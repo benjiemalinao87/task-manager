@@ -8,11 +8,26 @@ import {
   AlertCircle,
   History
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
-import type { Database } from '../lib/database.types';
 
-type Task = Database['public']['Tables']['tasks']['Row'];
+interface Task {
+  id: string;
+  user_id: string;
+  task_name: string;
+  description: string;
+  estimated_time: string;
+  actual_time?: string;
+  task_link?: string;
+  ai_summary?: string;
+  status: string;
+  asana_task_id?: string;
+  notes?: string;
+  started_at: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface TaskHistoryProps {
   refreshTrigger: number;
@@ -29,14 +44,12 @@ export function TaskHistory({ refreshTrigger }: TaskHistoryProps) {
   const fetchHistoricalTasks = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .neq('status', 'in_progress')
-        .order('completed_at', { ascending: false, nullsFirst: false });
-
-      if (error) throw error;
-      setTasks(data || []);
+      // Fetch both completed and cancelled tasks
+      const [completed, cancelled] = await Promise.all([
+        apiClient.getTasks('completed'),
+        apiClient.getTasks('cancelled')
+      ]);
+      setTasks([...completed, ...cancelled]);
     } catch (error) {
       console.error('Error fetching historical tasks:', error);
     } finally {

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { apiClient } from '../lib/api-client';
 
 interface TaskFormProps {
   onTaskCreated: () => void;
@@ -15,114 +15,17 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
     taskLink: '',
   });
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      const createdAtTime = new Date().toISOString();
-      const { data: task, error: insertError } = await supabase
-        .from('tasks')
-        .insert({
-          task_name: formData.taskName,
-          description: formData.description,
-          estimated_time: formData.estimatedTime,
-          task_link: formData.taskLink || null,
-          status: 'in_progress',
-          started_at: createdAtTime,
-        })
-        .select()
-        .maybeSingle();
-
-      if (insertError) throw insertError;
-      if (!task) throw new Error('Task creation failed');
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-summary`;
-      const summaryResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskId: task.id,
-          taskName: formData.taskName,
-          description: formData.description,
-        }),
+      await apiClient.createTask({
+        taskName: formData.taskName,
+        description: formData.description,
+        estimatedTime: formData.estimatedTime,
+        taskLink: formData.taskLink || undefined,
       });
-
-      if (!summaryResponse.ok) {
-        console.error('Failed to generate AI summary');
-      }
-
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('default_email')
-        .maybeSingle();
-
-      const email = settingsData?.default_email;
-      if (email) {
-        const taskCreatedUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-task-created-email`;
-        await fetch(taskCreatedUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            taskName: formData.taskName,
-            description: formData.description,
-            estimatedTime: formData.estimatedTime,
-            taskLink: formData.taskLink || null,
-            createdAt: createdAtTime,
-          }),
-        });
-      }
-
-      const { data: asanaIntegration } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('integration_type', 'asana')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (asanaIntegration?.api_key) {
-        try {
-          const asanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-asana-task`;
-          const asanaResponse = await fetch(asanaUrl, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              taskName: formData.taskName,
-              description: formData.description,
-              estimatedTime: formData.estimatedTime,
-              taskLink: formData.taskLink || null,
-            }),
-          });
-
-          if (asanaResponse.ok) {
-            const asanaResult = await asanaResponse.json();
-            console.log('Asana task created:', asanaResult.asanaTaskUrl);
-
-            // Store the Asana task ID in the database
-            if (asanaResult.asanaTaskGid) {
-              await supabase
-                .from('tasks')
-                .update({ asana_task_id: asanaResult.asanaTaskGid })
-                .eq('id', task.id);
-            }
-          } else {
-            console.error('Failed to create Asana task');
-          }
-        } catch (asanaError) {
-          console.error('Error creating Asana task:', asanaError);
-        }
-      }
 
       setFormData({
         taskName: '',

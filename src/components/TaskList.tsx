@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Upload } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
-import type { Database } from '../lib/database.types';
 
-type Task = Database['public']['Tables']['tasks']['Row'];
+interface Task {
+  id: string;
+  user_id: string;
+  task_name: string;
+  description: string;
+  estimated_time: string;
+  actual_time?: string;
+  task_link?: string;
+  ai_summary?: string;
+  status: string;
+  asana_task_id?: string;
+  notes?: string;
+  started_at: string;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface TaskListProps {
   refreshTrigger: number;
@@ -15,7 +30,6 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
-  const [syncingTaskId, setSyncingTaskId] = useState<string | null>(null);
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -43,14 +57,8 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('status', 'in_progress')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTasks(data || []);
+      const data = await apiClient.getTasks('in_progress');
+      setTasks(data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -68,62 +76,6 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     setNoteText('');
   };
 
-  const handleSyncToAsana = async (task: Task) => {
-    setSyncingTaskId(task.id);
-
-    try {
-      const { data: asanaIntegration } = await supabase
-        .from('integrations')
-        .select('*')
-        .eq('integration_type', 'asana')
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (!asanaIntegration?.api_key) {
-        alert('Asana integration is not configured or inactive.');
-        setSyncingTaskId(null);
-        return;
-      }
-
-      const asanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-asana-task`;
-      const asanaResponse = await fetch(asanaUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskName: task.task_name,
-          description: task.description,
-          estimatedTime: task.estimated_time,
-          taskLink: task.task_link || null,
-        }),
-      });
-
-      if (!asanaResponse.ok) {
-        const errorData = await asanaResponse.json();
-        throw new Error(errorData.error || 'Failed to create Asana task');
-      }
-
-      const asanaResult = await asanaResponse.json();
-
-      if (asanaResult.asanaTaskGid) {
-        await supabase
-          .from('tasks')
-          .update({ asana_task_id: asanaResult.asanaTaskGid })
-          .eq('id', task.id);
-
-        await fetchTasks();
-        alert('Task successfully synced to Asana!');
-      }
-    } catch (error) {
-      console.error('Error syncing to Asana:', error);
-      alert('Failed to sync task to Asana. Please try again.');
-    } finally {
-      setSyncingTaskId(null);
-    }
-  };
-
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
       return;
@@ -132,13 +84,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     setDeletingTaskId(taskId);
 
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-
-      if (error) throw error;
-
+      await apiClient.deleteTask(taskId);
       await fetchTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -152,6 +98,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     setCompletingTaskId(task.id);
 
     try {
+      // Calculate actual time
       const completedAt = new Date();
       const startedAt = new Date(task.started_at);
       const durationMinutes = Math.round((completedAt.getTime() - startedAt.getTime()) / 60000);
@@ -159,94 +106,16 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
       const minutes = durationMinutes % 60;
       const actualTime = `${hours}h ${minutes}m`;
 
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('default_email')
-        .maybeSingle();
-
-      const email = settingsData?.default_email;
-      if (!email) {
-        alert('No default email set. Please configure in settings.');
-        setCompletingTaskId(null);
-        return;
-      }
-
-      const emailUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
-      const emailResponse = await fetch(emailUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskId: task.id,
-          to: email,
-          taskName: task.task_name,
-          description: task.description,
-          estimatedTime: task.estimated_time,
-          actualTime: actualTime,
-          taskLink: task.task_link || 'No link provided',
-          aiSummary: task.ai_summary || 'Summary not available',
-          notes: notes || null,
-        }),
+      await apiClient.updateTask(task.id, {
+        status: 'completed',
+        notes: notes || undefined,
+        actualTime,
       });
-
-      if (!emailResponse.ok) {
-        console.error('Failed to send email');
-      }
-
-      const { error: updateError } = await supabase
-        .from('tasks')
-        .update({
-          status: 'completed',
-          completed_at: completedAt.toISOString(),
-          actual_time: actualTime,
-          notes: notes || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', task.id);
-
-      if (updateError) throw updateError;
-
-      // If the task has an Asana task ID, complete it in Asana too
-      if (task.asana_task_id) {
-        try {
-          const { data: integrationData } = await supabase
-            .from('integrations')
-            .select('api_key, is_active')
-            .eq('integration_type', 'asana')
-            .maybeSingle();
-
-          if (integrationData?.is_active && integrationData.api_key) {
-            const completeAsanaUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/complete-asana-task`;
-            const asanaResponse = await fetch(completeAsanaUrl, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                apiToken: integrationData.api_key,
-                asanaTaskId: task.asana_task_id,
-              }),
-            });
-
-            if (asanaResponse.ok) {
-              console.log('Successfully completed task in Asana');
-            } else {
-              console.error('Failed to complete task in Asana');
-            }
-          }
-        } catch (asanaError) {
-          console.error('Error completing Asana task:', asanaError);
-          // Don't fail the entire operation if Asana completion fails
-        }
-      }
 
       setShowNoteInput(null);
       setNoteText('');
       await fetchTasks();
-      alert('Task completed and email sent!');
+      alert('Task completed successfully!');
     } catch (error) {
       console.error('Error completing task:', error);
       alert('Failed to complete task. Please try again.');
@@ -339,28 +208,6 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
               <span>Created: {formatDateTimePST(task.created_at)}</span>
             </div>
           </div>
-
-          {!task.asana_task_id && (
-            <div className="mb-3">
-              <button
-                onClick={() => handleSyncToAsana(task)}
-                disabled={syncingTaskId === task.id}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {syncingTaskId === task.id ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Syncing to Asana...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-5 h-5" />
-                    Sync to Asana
-                  </>
-                )}
-              </button>
-            </div>
-          )}
 
           <div className="flex gap-2">
             {showNoteInput === task.id ? (

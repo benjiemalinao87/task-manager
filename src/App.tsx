@@ -1,81 +1,54 @@
-import { useState, useEffect } from 'react';
-import { CheckSquare, Settings as SettingsIcon } from 'lucide-react';
+import { useState } from 'react';
+import { CheckSquare, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthPage } from './components/auth/AuthPage';
+import { NotificationPreferences } from './components/onboarding/NotificationPreferences';
+import { SimpleSettings } from './components/SimpleSettings';
+import { Integrations } from './components/Integrations';
+import { ClockInOut } from './components/ClockInOut';
 import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
 import { TaskHistory } from './components/TaskHistory';
 import { TabNavigation } from './components/TabNavigation';
-import { Integrations } from './components/Integrations';
-import { ClockIn } from './components/ClockIn';
-import { ClockOutWidget } from './components/ClockOutWidget';
-import { supabase } from './lib/supabase';
 
-function App() {
+function TaskManager() {
+  const { user, logout } = useAuth();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [isClockedIn, setIsClockedIn] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [showIntegrations, setShowIntegrations] = useState(false);
   const [activeTab, setActiveTab] = useState<'manager' | 'history'>('manager');
-
-  useEffect(() => {
-    checkActiveSession();
-  }, []);
-
-  const checkActiveSession = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('time_sessions')
-        .select('*')
-        .is('clock_out', null)
-        .order('clock_in', { ascending: false })
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setCurrentSessionId(data.id);
-        setIsClockedIn(true);
-      }
-    } catch (error) {
-      console.error('Error checking active session:', error);
-    } finally {
-      setIsCheckingSession(false);
-    }
-  };
 
   const handleTaskCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  const handleClockIn = (sessionId: string) => {
-    setCurrentSessionId(sessionId);
-    setIsClockedIn(true);
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to logout?')) {
+      await logout();
+    }
   };
-
-  if (isCheckingSession) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!isClockedIn) {
-    return <ClockIn onClockIn={handleClockIn} />;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <header className="text-center mb-8 relative">
           <div className="absolute right-0 top-0 flex items-center gap-3">
-            <ClockOutWidget />
+            <div className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg">
+              👤 {user?.name || user?.email}
+            </div>
             <button
               onClick={() => setShowSettings(true)}
               className="p-2 text-gray-600 hover:text-gray-800 hover:bg-white rounded-lg transition-colors"
               title="Settings"
             >
               <SettingsIcon className="w-6 h-6" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-600 hover:text-red-600 hover:bg-white rounded-lg transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-6 h-6" />
             </button>
           </div>
 
@@ -85,6 +58,11 @@ function App() {
           </div>
           <p className="text-gray-600">Create tasks with AI summaries and automatic email notifications</p>
         </header>
+
+        {/* Clock In/Out Widget */}
+        <div className="mb-6">
+          <ClockInOut />
+        </div>
 
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -96,10 +74,53 @@ function App() {
         ) : (
           <TaskHistory refreshTrigger={refreshTrigger} />
         )}
+
+        {/* Integrations Button - Fixed at bottom right */}
+        <button
+          onClick={() => setShowIntegrations(true)}
+          className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-lg transition-colors flex items-center gap-2 z-40"
+        >
+          <SettingsIcon className="w-5 h-5" />
+          Integrations
+        </button>
       </div>
 
-      {showSettings && <Integrations onClose={() => setShowSettings(false)} />}
+      {showSettings && <SimpleSettings onClose={() => setShowSettings(false)} />}
+      {showIntegrations && <Integrations onClose={() => setShowIntegrations(false)} />}
     </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, isLoading, needsOnboarding, completeOnboarding } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  // Show notification preferences if user needs onboarding
+  if (needsOnboarding) {
+    return <NotificationPreferences onComplete={completeOnboarding} />;
+  }
+
+  // Show main app
+  return <TaskManager />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

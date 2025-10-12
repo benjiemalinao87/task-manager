@@ -1,0 +1,27 @@
+{
+  "name": "task-manager-workers",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers for Task Manager",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/bcryptjs": "^2.4.6",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.86.0"
+  },
+  "dependencies": {
+    "@tsndr/cloudflare-worker-jwt": "^2.4.2",
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.0.0"
+  }
+}

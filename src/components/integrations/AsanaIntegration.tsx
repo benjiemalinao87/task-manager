@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 
 interface AsanaProject {
   gid: string;
@@ -10,6 +10,7 @@ interface AsanaProject {
 export function AsanaIntegration() {
   const [apiKey, setApiKey] = useState('');
   const [defaultAssignee, setDefaultAssignee] = useState('');
+  const [workspaceId, setWorkspaceId] = useState('');
   const [projects, setProjects] = useState<AsanaProject[]>([]);
   const [selectedProject, setSelectedProject] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -40,6 +41,7 @@ export function AsanaIntegration() {
         if (data.config) {
           setSelectedProject(data.config.project_gid || '');
           setDefaultAssignee(data.config.default_assignee_email || '');
+          setWorkspaceId(data.config.workspace_gid || '');
         }
         if (data.is_active && data.api_key) {
           await fetchProjects(data.api_key);
@@ -109,6 +111,7 @@ export function AsanaIntegration() {
       const config = {
         project_gid: selectedProject,
         default_assignee_email: defaultAssignee.trim(),
+        workspace_gid: workspaceId.trim(),
       };
 
       if (integrationId) {
@@ -268,6 +271,23 @@ export function AsanaIntegration() {
           </div>
 
           <div>
+            <label htmlFor="workspaceId" className="block text-sm font-medium text-gray-700 mb-2">
+              Workspace ID *
+            </label>
+            <input
+              type="text"
+              id="workspaceId"
+              value={workspaceId}
+              onChange={(e) => setWorkspaceId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="1204857085390737"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Your Asana workspace ID (find it in your workspace URL or settings)
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="defaultAssignee" className="block text-sm font-medium text-gray-700 mb-2">
               Default Assignee Email (Optional)
             </label>
@@ -277,7 +297,7 @@ export function AsanaIntegration() {
               value={defaultAssignee}
               onChange={(e) => setDefaultAssignee(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="assignee@example.com"
+              placeholder="benjie@channelautomation.com"
             />
             <p className="text-xs text-gray-500 mt-2">
               Tasks will be automatically assigned to this email address in Asana

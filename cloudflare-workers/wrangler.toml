@@ -1,0 +1,87 @@
+# Cloudflare Workers Configuration
+# Task Manager API
+
+name = "task-manager-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ===================================
+# DEVELOPMENT ENVIRONMENT
+# ===================================
+[env.development]
+name = "task-manager-api-dev"
+
+# Custom domain (must be added via Cloudflare Dashboard):
+# Go to: Workers & Pages → task-manager-api-dev → Settings → Domains & Routes
+# Add custom domain: api.workoto.app
+
+# NOTE: Run these commands to set up:
+# 1. wrangler d1 create task-manager-dev
+# 2. wrangler kv:namespace create "KV" --env development
+# 3. wrangler queues create email-queue-dev
+# Then update the IDs below
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "task-manager-dev"
+database_id = "83af6425-1a63-41f3-a722-46924438e7cc"
+
+[[env.development.kv_namespaces]]
+binding = "KV"
+id = "765c7311eb1a4e05be3ef67cc494bd41"
+
+[[env.development.queues.producers]]
+binding = "EMAIL_QUEUE"
+queue = "email-queue-dev"
+
+[[env.development.queues.consumers]]
+queue = "email-queue-dev"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+
+# ===================================
+# PRODUCTION ENVIRONMENT
+# ===================================
+[env.production]
+name = "task-manager-api"
+
+# NOTE: Run these commands for production:
+# 1. wrangler d1 create task-manager-prod
+# 2. wrangler kv:namespace create "KV" --env production
+# 3. wrangler queues create email-queue-prod
+# Then update the IDs below
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "task-manager-prod"
+database_id = "YOUR-PROD-DB-ID"  # Replace after creating
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "YOUR-PROD-KV-ID"  # Replace after creating
+
+[[env.production.queues.producers]]
+binding = "EMAIL_QUEUE"
+queue = "email-queue-prod"
+
+[[env.production.queues.consumers]]
+queue = "email-queue-prod"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+
+# Uncomment when you have a domain:
+# [[env.production.routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"
+
+# ===================================
+# SECRETS (set via: wrangler secret put <NAME>)
+# ===================================
+# Required secrets:
+# - JWT_SECRET (generate with: openssl rand -base64 32)
+# - OPENAI_API_KEY
+# - SENDGRID_API_KEY
+# - RESEND_API_KEY (optional)
