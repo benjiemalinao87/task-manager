@@ -31,7 +31,7 @@ export function PricingPage({ onGetStarted, onClose }: PricingPageProps) {
             Simple, Transparent Pricing
           </h1>
           <p className="text-xl text-blue-100 mb-8">
-            Be an early adopter and get <strong>lifetime free access</strong> to all premium features.
+            Be an early adopter and get <strong>free access</strong> to all premium features.
           </p>
         </div>
       </section>
@@ -51,10 +51,9 @@ export function PricingPage({ onGetStarted, onClose }: PricingPageProps) {
                 <h3 className="text-3xl font-bold text-gray-900 mb-2">Early Adopter</h3>
                 <div className="flex items-baseline justify-center gap-2 mb-4">
                   <span className="text-6xl font-bold text-green-600">FREE</span>
-                  <span className="text-gray-600">forever</span>
                 </div>
                 <p className="text-gray-700 font-medium">
-                  Join now and lock in free access for life!
+                  Join now and get free access as an early adopter!
                 </p>
               </div>
 
@@ -183,7 +182,7 @@ export function PricingPage({ onGetStarted, onClose }: PricingPageProps) {
             <div className="bg-green-50 border-l-4 border-green-600 p-6 rounded-r-lg">
               <h3 className="text-xl font-bold text-gray-900 mb-2">2. You're Taking a Chance on Us</h3>
               <p className="text-gray-700">
-                We're new, and you're trusting us with your workflow. That deserves to be rewarded with free lifetime access.
+                We're new, and you're trusting us with your workflow. That deserves to be rewarded with free access.
               </p>
             </div>
 
@@ -285,7 +284,7 @@ export function PricingPage({ onGetStarted, onClose }: PricingPageProps) {
             onClick={onGetStarted}
             className="bg-white text-green-600 px-12 py-5 rounded-lg font-bold text-2xl hover:bg-green-50 transition-colors shadow-2xl inline-flex items-center gap-3"
           >
-            Claim Your Free Lifetime Access <ArrowRight className="w-7 h-7" />
+            Claim Your Free Access <ArrowRight className="w-7 h-7" />
           </button>
           <p className="mt-6 text-green-200 text-sm">
             ⏰ Limited to first 500 early adopters • No credit card required • Join in 2 minutes

@@ -75,18 +75,17 @@ function TaskManager() {
         ) : (
           <TaskHistory refreshTrigger={refreshTrigger} />
         )}
-
-        {/* Integrations Button - Fixed at bottom right */}
-        <button
-          onClick={() => setShowIntegrations(true)}
-          className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-lg transition-colors flex items-center gap-2 z-40"
-        >
-          <SettingsIcon className="w-5 h-5" />
-          Integrations
-        </button>
       </div>
 
-      {showSettings && <SimpleSettings onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SimpleSettings 
+          onClose={() => setShowSettings(false)} 
+          onOpenIntegrations={() => {
+            setShowSettings(false);
+            setShowIntegrations(true);
+          }}
+        />
+      )}
       {showIntegrations && <Integrations onClose={() => setShowIntegrations(false)} />}
     </div>
   );

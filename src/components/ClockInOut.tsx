@@ -81,56 +81,55 @@ export function ClockInOut() {
   };
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Clock className="w-6 h-6" />
-          <h3 className="text-xl font-bold">Time Tracking</h3>
-        </div>
-        <div
-          className={`px-3 py-1 rounded-full text-sm font-medium ${
-            isClockedIn
-              ? 'bg-green-500 text-white'
-              : 'bg-white/20 text-white'
-          }`}
-        >
-          {isClockedIn ? 'Clocked In' : 'Clocked Out'}
-        </div>
-      </div>
-
-      {isClockedIn && (
-        <div className="mb-4 text-center">
-          <div className="text-4xl font-mono font-bold mb-1">{elapsedTime}</div>
-          <div className="text-blue-200 text-sm">
-            Started at {clockInTime?.toLocaleTimeString()}
+    <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: Status and Time */}
+        <div className="flex items-center gap-4 flex-1">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            <span className="font-semibold text-gray-800">Time Tracking</span>
           </div>
+          
+          {isClockedIn && (
+            <div className="flex items-center gap-3">
+              <div className="text-2xl font-mono font-bold text-blue-600">{elapsedTime}</div>
+              <div
+                className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"
+              >
+                Clocked In
+              </div>
+            </div>
+          )}
+          
+          {!isClockedIn && (
+            <div
+              className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+            >
+              Clocked Out
+            </div>
+          )}
         </div>
-      )}
 
-      {!isClockedIn ? (
-        <button
-          onClick={handleClockIn}
-          disabled={isProcessing}
-          className="w-full bg-white text-blue-600 font-semibold py-3 px-6 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          <Play className="w-5 h-5" />
-          {isProcessing ? 'Clocking In...' : 'Clock In'}
-        </button>
-      ) : (
-        <button
-          onClick={handleClockOut}
-          disabled={isProcessing}
-          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          <Square className="w-5 h-5" />
-          {isProcessing ? 'Clocking Out...' : 'Clock Out'}
-        </button>
-      )}
-
-      <div className="mt-4 text-blue-100 text-xs text-center">
-        {isClockedIn
-          ? 'You will receive an email when you clock out'
-          : 'Clock in to start tracking your time'}
+        {/* Right: Action Button */}
+        {!isClockedIn ? (
+          <button
+            onClick={handleClockIn}
+            disabled={isProcessing}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
+          >
+            <Play className="w-4 h-4" />
+            {isProcessing ? 'Clocking In...' : 'Clock In'}
+          </button>
+        ) : (
+          <button
+            onClick={handleClockOut}
+            disabled={isProcessing}
+            className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
+          >
+            <Square className="w-4 h-4" />
+            {isProcessing ? 'Clocking Out...' : 'Clock Out'}
+          </button>
+        )}
       </div>
     </div>
   );

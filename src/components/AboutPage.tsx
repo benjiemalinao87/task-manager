@@ -214,7 +214,7 @@ export function AboutPage({ onGetStarted, onClose }: AboutPageProps) {
             </div>
 
             <p className="text-xl mb-6 leading-relaxed">
-              I'm offering <strong>100% free lifetime access</strong> to the first 500 people who sign up.
+              I'm offering <strong>100% free access</strong> to the first 500 people who sign up.
             </p>
 
             <p className="text-xl mb-6 leading-relaxed">

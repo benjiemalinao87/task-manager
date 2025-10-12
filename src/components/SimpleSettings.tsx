@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Bell, Mail, Loader2 } from 'lucide-react';
+import { X, Save, Bell, Mail, Loader2, Settings } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 
 interface SimpleSettingsProps {
   onClose: () => void;
+  onOpenIntegrations: () => void;
 }
 
-export function SimpleSettings({ onClose }: SimpleSettingsProps) {
+export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsProps) {
   const [settings, setSettings] = useState({
     default_email: '',
     notify_task_created: true,
@@ -85,6 +86,8 @@ export function SimpleSettings({ onClose }: SimpleSettingsProps) {
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Close settings"
+            aria-label="Close settings"
           >
             <X className="w-6 h-6 text-gray-600" />
           </button>
@@ -224,6 +227,15 @@ export function SimpleSettings({ onClose }: SimpleSettingsProps) {
                 Save Settings
               </>
             )}
+          </button>
+
+          {/* Integrations Button */}
+          <button
+            onClick={onOpenIntegrations}
+            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Settings className="w-5 h-5" />
+            Manage Integrations
           </button>
         </div>
       </div>
