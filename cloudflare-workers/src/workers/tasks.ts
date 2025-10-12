@@ -71,21 +71,36 @@ async function createAsanaTask(
     };
 
     // Add assignee if configured
-    if (assigneeEmail) {
-      // First, get user GID from email
-      const userResponse = await fetch(
-        `https://app.asana.com/api/1.0/workspaces/${config.workspace_gid}/users/${assigneeEmail}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${integration.api_key}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+    if (assigneeEmail && config.workspace_gid) {
+      try {
+        // Get all users in workspace and find by email
+        const usersResponse = await fetch(
+          `https://app.asana.com/api/1.0/workspaces/${config.workspace_gid}/users`,
+          {
+            headers: {
+              'Authorization': `Bearer ${integration.api_key}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        asanaPayload.data.assignee = userData.data.gid;
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          const user = usersData.data?.find((u: any) =>
+            u.email?.toLowerCase() === assigneeEmail.toLowerCase()
+          );
+
+          if (user && user.gid) {
+            asanaPayload.data.assignee = user.gid;
+            console.log(`Assigned task to user: ${user.name} (${user.gid})`);
+          } else {
+            console.log(`User with email ${assigneeEmail} not found in workspace`);
+          }
+        } else {
+          console.error('Failed to fetch workspace users:', await usersResponse.text());
+        }
+      } catch (err) {
+        console.error('Error looking up assignee:', err);
       }
     }
 
