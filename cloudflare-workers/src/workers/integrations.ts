@@ -205,7 +205,7 @@ integrations.get('/asana/workspaces', async (c) => {
 
   try {
     const integration = await c.env.DB.prepare(
-      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ? AND is_active = 1'
+      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ?'
     ).bind(auth.userId, 'asana').first<{ api_key: string }>();
 
     if (!integration) {
@@ -244,7 +244,7 @@ integrations.get('/asana/projects', async (c) => {
     }
 
     const integration = await c.env.DB.prepare(
-      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ? AND is_active = 1'
+      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ?'
     ).bind(auth.userId, 'asana').first<{ api_key: string }>();
 
     if (!integration) {

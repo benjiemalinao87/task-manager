@@ -98,15 +98,19 @@ export function AsanaIntegration() {
 
       if (testResult.success) {
         // Save the integration with just the API key for now
-        await apiClient.saveIntegration({
+        const result = await apiClient.saveIntegration({
           integration_type: 'asana',
           api_key: apiKey,
           is_active: false, // Not fully active until workspace and project are selected
           config: {},
         });
 
-        // Fetch workspaces
-        await loadIntegration();
+        if (result.integration) {
+          setIntegrationId(result.integration.id);
+        }
+
+        // Fetch workspaces immediately after successful connection
+        await fetchWorkspaces();
         setIsConnected(true);
       }
     } catch (err) {
