@@ -58,12 +58,15 @@ async function createAsanaTask(
       return null;
     }
 
-    // Create task in Asana
+    // Create task in Asana with today as due date
+    const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
     const asanaPayload: any = {
       data: {
         name: taskName,
         notes: description,
         projects: [projectGid],
+        due_on: today,
       }
     };
 
