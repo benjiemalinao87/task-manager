@@ -94,7 +94,7 @@ async function createAsanaTask(
         );
 
         if (meResponse.ok) {
-          const userData = await meResponse.json();
+          const userData = await meResponse.json() as { data: { gid: string; name: string } };
           const currentUser = userData.data;
           
           if (currentUser && currentUser.gid) {
@@ -129,7 +129,7 @@ async function createAsanaTask(
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { data: { gid: string } };
     return data.data.gid;
 
   } catch (error) {
@@ -170,17 +170,40 @@ tasks.post('/', async (c) => {
     const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
       .bind(taskId).first();
 
-    // Queue AI summary generation with email notification (fire and forget)
-    // Email will be sent AFTER AI summary is generated
+    // Trigger AI summary generation in the background
+    const authHeader = c.req.header('Authorization') || '';
+    const requestUrl = new URL(c.req.url);
+    
+    // Construct the API URL (handles both custom domain and worker URL)
+    const apiUrl = `${requestUrl.protocol}//${requestUrl.host}/api/ai/generate-summary`;
+    
+    console.log('Triggering AI summary generation:', apiUrl);
+    
     c.executionCtx.waitUntil(
-      fetch(`${new URL(c.req.url).origin}/api/ai/generate-summary`, {
+      fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': c.req.header('Authorization') || '',
+          'Authorization': authHeader,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ taskId, taskName, description, estimatedTime, sendEmail: true })
-      }).catch(err => console.error('AI summary failed:', err))
+        body: JSON.stringify({ 
+          taskId, 
+          taskName, 
+          description, 
+          estimatedTime, 
+          sendEmail: true 
+        })
+      })
+      .then(response => {
+        console.log('AI summary response status:', response.status);
+        return response.json();
+      })
+      .then(data => {
+        console.log('AI summary result:', data);
+      })
+      .catch(err => {
+        console.error('AI summary failed:', err);
+      })
     );
 
     return c.json(task, 201);
@@ -302,6 +325,10 @@ tasks.patch('/:id', async (c) => {
     const updatedTask = await c.env.DB.prepare(
       'SELECT * FROM tasks WHERE id = ? AND user_id = ?'
     ).bind(taskId, auth.userId).first();
+
+    if (!updatedTask) {
+      return c.json({ error: 'Task not found after update' }, 404);
+    }
 
     // Queue completion email if task is completed
     if (status === 'completed') {

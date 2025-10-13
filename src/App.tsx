@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Settings as SettingsIcon, LogOut, CheckSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LandingPage } from './components/LandingPage';
@@ -11,6 +12,7 @@ import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
 import { TaskHistory } from './components/TaskHistory';
 import { TabNavigation } from './components/TabNavigation';
+import { TaskDetailView } from './components/TaskDetailView';
 
 function TaskManager() {
   const { user, logout } = useAuth();
@@ -126,15 +128,23 @@ function AppContent() {
     return <NotificationPreferences onComplete={completeOnboarding} />;
   }
 
-  // Show main app
-  return <TaskManager />;
+  // Show main app with routes
+  return (
+    <Routes>
+      <Route path="/" element={<TaskManager />} />
+      <Route path="/task/:taskId" element={<TaskDetailView />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

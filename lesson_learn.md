@@ -521,3 +521,267 @@ asanaPayload.data.assignee = userData.data.gid; // Always assigns to token owner
 wrangler deploy --env development
 # Version: 80530646-8fe4-48be-b9fe-d8dd185a9a81
 ```
+
+---
+
+## Feature: Task Card Focus View (Oct 13, 2025)
+
+### Problem
+Task cards were always fully expanded showing all details (timer, description, AI summary, metadata, buttons). When users have multiple tasks:
+- Takes too much vertical space
+- Hard to see all tasks at once
+- Difficult to quickly scan active tasks
+
+### Solution
+Implemented collapsible/expandable task cards with two view modes:
+
+**Compact View (Default):**
+- Task name
+- Running timer (small format)
+- Status badge
+- Expand button (maximize icon)
+
+**Focus View (Expanded):**
+- Large timer display
+- Full description
+- AI summary
+- Metadata (estimated time, created date, task link)
+- Action buttons (Complete, Delete)
+
+### Implementation
+
+**Added state to track expanded task:**
+```typescript
+const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+const toggleExpand = (taskId: string) => {
+  setExpandedTaskId(expandedTaskId === taskId ? null : taskId);
+};
+```
+
+**Conditional rendering:**
+```typescript
+{tasks.map((task) => {
+  const isExpanded = expandedTaskId === task.id;
+  
+  return (
+    <div>
+      {/* Always show: Compact header */}
+      <div className="flex items-center justify-between">
+        <h3>{task.task_name}</h3>
+        {!isExpanded && <span>{calculateElapsedTime(task.started_at)}</span>}
+        <button onClick={() => toggleExpand(task.id)}>
+          {isExpanded ? <Minimize2 /> : <Maximize2 />}
+        </button>
+      </div>
+      
+      {/* Show only when expanded: Full details */}
+      {isExpanded && (
+        <>
+          <Timer />
+          <Description />
+          <AISummary />
+          <Metadata />
+          <ActionButtons />
+        </>
+      )}
+    </div>
+  );
+})}
+```
+
+### Benefits
+
+1. ✅ **Better space management** - Compact view takes 1/4 the space
+2. ✅ **Quick scanning** - Users can see all active tasks at once
+3. ✅ **Focus mode** - Expand one task to see full details
+4. ✅ **Smooth transitions** - Clean expand/collapse animations
+5. ✅ **Keyboard accessible** - Button has proper title attribute
+
+### User Experience
+
+**Before:** All tasks always fully expanded
+- 3 tasks = 3 full screen scrolls
+- Hard to compare tasks
+- Information overload
+
+**After:** Tasks collapsed by default
+- 3 tasks = 1 screen
+- Easy to see all tasks
+- Expand only when needed
+
+### Files Changed
+- `src/components/TaskList.tsx` - Added expand/collapse functionality
+- Added `Maximize2` and `Minimize2` icons from lucide-react
+
+### Testing Checklist
+- [x] Task cards show compact view by default
+- [x] Click expand button shows full details
+- [x] Click collapse button returns to compact view
+- [x] Timer updates in both views
+- [x] Only one task can be expanded at a time
+- [x] Action buttons only visible in expanded view
+- [x] No linting errors
+
+**Status:** ✅ Implemented and tested  
+**Date:** October 13, 2025
+
+---
+
+## Feature: Standalone Task Focus Route (Oct 13, 2025)
+
+### Problem
+Users could only view tasks within the main task list. There was no way to:
+- Share a direct link to a specific task
+- Open a task in its own dedicated view
+- Focus on a single task without distractions
+- Bookmark or reference a specific task
+
+### Solution
+Implemented React Router with a standalone route for individual task viewing at `/task/:taskId`.
+
+**New Routes:**
+- `/` - Main dashboard with all tasks
+- `/task/:taskId` - Dedicated focus view for a single task
+- `*` - Catch-all redirects to home
+
+### Implementation
+
+**1. Installed React Router:**
+```bash
+npm install react-router-dom
+```
+
+**2. Created TaskDetailView Component:**
+```typescript
+// src/components/TaskDetailView.tsx
+export function TaskDetailView() {
+  const { taskId } = useParams<{ taskId: string }>();
+  const navigate = useNavigate();
+  
+  // Fetch specific task
+  // Display in full-screen focus view
+  // Navigate back with Back button
+}
+```
+
+**Key Features:**
+- Uses `useParams()` to get taskId from URL
+- Uses `useNavigate()` for programmatic navigation
+- Full-screen layout with back button
+- Larger timer display (text-7xl vs text-6xl)
+- Larger action buttons
+- Auto-focuses completion note textarea
+- Handles task not found / already completed
+
+**3. Updated App.tsx with Router:**
+```typescript
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<TaskManager />} />
+          <Route path="/task/:taskId" element={<TaskDetailView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+```
+
+**4. Added Focus View Button to TaskList:**
+```typescript
+<button
+  onClick={() => navigate(`/task/${task.id}`)}
+  className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg"
+  title="Open in Focus View"
+>
+  <ExternalLink className="w-5 h-5" />
+</button>
+```
+
+### User Experience
+
+**Before:**
+- Tasks only viewable in list
+- No way to share task links
+- Limited focus on individual tasks
+
+**After:**
+- Click purple "Focus View" button (external link icon)
+- Opens task in dedicated full-screen view
+- URL: `https://workoto.app/task/abc-123-def`
+- Can share URL with team members
+- Back button returns to dashboard
+- Cleaner, distraction-free interface
+
+### Features
+
+1. ✅ **Direct linking** - Share task URLs
+2. ✅ **Deep linking** - Open specific task from anywhere
+3. ✅ **Focus mode** - Full-screen, distraction-free
+4. ✅ **Navigation** - Back button to return to dashboard
+5. ✅ **Error handling** - Shows message if task not found
+6. ✅ **Real-time timer** - Updates every second in focus view
+7. ✅ **All actions available** - Complete, delete, add notes
+
+### UI Improvements in Focus View
+
+**Compared to inline view:**
+- Larger timer: `text-7xl` (was `text-6xl`)
+- More padding: `p-12` timer (was `p-8`)
+- Larger buttons: `py-4` (was `py-3`)
+- Bigger icons: `w-6 h-6` (was `w-5 h-5`)
+- Section headers: Clear "Description", "Task Details"
+- Full-width layout: `max-w-4xl` container
+- Clean header with branding and back button
+
+### Technical Details
+
+**Dependencies Added:**
+```json
+{
+  "react-router-dom": "^6.x.x"
+}
+```
+
+**Files Created:**
+- `src/components/TaskDetailView.tsx` - 350+ lines
+
+**Files Modified:**
+- `src/App.tsx` - Added BrowserRouter and Routes
+- `src/components/TaskList.tsx` - Added focus view button
+
+**Build Impact:**
+- Before: 278.91 kB
+- After: 321.63 kB (+42.72 kB, +15.3% due to react-router-dom)
+- Gzip: 83.26 kB (acceptable for SPA routing)
+
+### Testing Checklist
+
+- [x] Click focus view button opens task in new route
+- [x] URL shows `/task/:taskId` correctly
+- [x] Back button navigates to dashboard
+- [x] Timer updates every second in focus view
+- [x] Complete task redirects to dashboard
+- [x] Delete task redirects to dashboard
+- [x] Task not found shows error message
+- [x] Direct URL navigation works
+- [x] Browser back/forward buttons work
+- [x] No linting errors
+- [x] Build succeeds
+
+### Future Enhancements
+
+Possible improvements:
+1. Add task editing in focus view
+2. Share button with copy-to-clipboard
+3. QR code generation for task URL
+4. Print view for task
+5. Add keyboard shortcuts (Esc to go back)
+6. Add task navigation (prev/next task)
+
+**Status:** ✅ Implemented and deployed  
+**Date:** October 13, 2025

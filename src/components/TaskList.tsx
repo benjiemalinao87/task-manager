@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
@@ -26,6 +27,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ refreshTrigger }: TaskListProps) {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [showNoteInput, setShowNoteInput] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -74,6 +77,10 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const handleCancelNote = () => {
     setShowNoteInput(null);
     setNoteText('');
+  };
+
+  const toggleExpand = (taskId: string) => {
+    setExpandedTaskId(expandedTaskId === taskId ? null : taskId);
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -153,166 +160,208 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
       </div>
       
-      {tasks.map((task) => (
-        <div
-          key={task.id}
-          className="bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all border-2 border-orange-300"
-        >
-          {/* Header */}
-          <div className="flex items-start justify-between mb-5">
-            <h3 className="text-2xl font-bold text-gray-800 flex-1">{task.task_name}</h3>
-            <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200">
-              <Clock className="w-4 h-4 animate-pulse" />
-              In Progress
-            </span>
-          </div>
-
-          {/* Timer Display */}
-          <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
-            <div className="text-center">
-              <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">Time Running</p>
-              <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at)}</p>
-              <p className="text-xs opacity-75 font-medium">Hours : Minutes : Seconds</p>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="mb-6">
-            <p className="text-gray-700 leading-relaxed">{task.description}</p>
-          </div>
-
-          {/* AI Summary */}
-          {task.ai_summary && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-sm">
-              <p className="text-sm font-bold text-blue-900 mb-2 uppercase tracking-wide">✨ AI Summary</p>
-              <p className="text-sm text-blue-800 leading-relaxed">{task.ai_summary}</p>
-            </div>
-          )}
-
-          {/* Task Metadata */}
-          <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3 text-gray-700">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Clock className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-500 font-medium">Estimated Time</span>
-                  <span className="font-semibold">{task.estimated_time}</span>
-                </div>
+      {tasks.map((task) => {
+        const isExpanded = expandedTaskId === task.id;
+        
+        return (
+          <div
+            key={task.id}
+            className={`bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-lg hover:shadow-xl transition-all border-2 border-orange-300 ${
+              isExpanded ? 'p-8' : 'p-6'
+            }`}
+          >
+            {/* Compact View - Always Visible */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex-1">
+                <h3 className={`font-bold text-gray-800 ${isExpanded ? 'text-2xl mb-2' : 'text-xl'}`}>
+                  {task.task_name}
+                </h3>
+                {!isExpanded && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock className="w-4 h-4" />
+                    <span className="font-mono font-bold">{calculateElapsedTime(task.started_at)}</span>
+                  </div>
+                )}
               </div>
-
-              {task.actual_time && (
-                <div className="flex items-center gap-3 text-gray-700">
-                  <div className="bg-green-100 p-2 rounded-lg">
-                    <Clock className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-500 font-medium">Actual Time</span>
-                    <span className="font-semibold">{task.actual_time}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
-                <div className="bg-purple-100 p-2 rounded-lg">
-                  <Calendar className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-500 font-medium">Created</span>
-                  <span className="font-semibold text-sm">{formatDateTimePST(task.created_at)}</span>
-                </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200 whitespace-nowrap">
+                  <Clock className="w-4 h-4 animate-pulse" />
+                  In Progress
+                </span>
+                <button
+                  onClick={() => navigate(`/task/${task.id}`)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all shadow-sm hover:shadow-md"
+                  title="Open in Focus View"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => toggleExpand(task.id)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all shadow-sm hover:shadow-md"
+                  title={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                  {isExpanded ? (
+                    <Minimize2 className="w-5 h-5" />
+                  ) : (
+                    <Maximize2 className="w-5 h-5" />
+                  )}
+                </button>
               </div>
-
-              {task.task_link && (
-                <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
-                  <div className="bg-indigo-100 p-2 rounded-lg">
-                    <LinkIcon className="w-4 h-4 text-indigo-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="block text-xs text-gray-500 font-medium mb-1">Task Link</span>
-                    <a
-                      href={task.task_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium"
-                    >
-                      {task.task_link}
-                    </a>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {showNoteInput === task.id ? (
-              <div className="flex-1 space-y-4">
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    📝 Add Completion Note (Optional)
-                  </label>
-                  <textarea
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Any additional notes about this task completion..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none transition-all"
-                    rows={3}
-                  />
+            {/* Expanded View - Conditional */}
+            {isExpanded && (
+              <>
+                {/* Timer Display */}
+                <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
+                  <div className="text-center">
+                    <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">Time Running</p>
+                    <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at)}</p>
+                    <p className="text-xs opacity-75 font-medium">Hours : Minutes : Seconds</p>
+                  </div>
                 </div>
+
+                {/* Description */}
+                <div className="mb-6">
+                  <p className="text-gray-700 leading-relaxed">{task.description}</p>
+                </div>
+
+                {/* AI Summary */}
+                {task.ai_summary && (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-sm">
+                    <p className="text-sm font-bold text-blue-900 mb-2 uppercase tracking-wide">✨ AI Summary</p>
+                    <p className="text-sm text-blue-800 leading-relaxed">{task.ai_summary}</p>
+                  </div>
+                )}
+
+                {/* Task Metadata */}
+                <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3 text-gray-700">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-500 font-medium">Estimated Time</span>
+                        <span className="font-semibold">{task.estimated_time}</span>
+                      </div>
+                    </div>
+
+                    {task.actual_time && (
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <div className="bg-green-100 p-2 rounded-lg">
+                          <Clock className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                          <span className="block text-xs text-gray-500 font-medium">Actual Time</span>
+                          <span className="font-semibold">{task.actual_time}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                      <div className="bg-purple-100 p-2 rounded-lg">
+                        <Calendar className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <span className="block text-xs text-gray-500 font-medium">Created</span>
+                        <span className="font-semibold text-sm">{formatDateTimePST(task.created_at)}</span>
+                      </div>
+                    </div>
+
+                    {task.task_link && (
+                      <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                        <div className="bg-indigo-100 p-2 rounded-lg">
+                          <LinkIcon className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-xs text-gray-500 font-medium mb-1">Task Link</span>
+                          <a
+                            href={task.task_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium"
+                          >
+                            {task.task_link}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
                 <div className="flex gap-3">
+                  {showNoteInput === task.id ? (
+                    <div className="flex-1 space-y-4">
+                      <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                          📝 Add Completion Note (Optional)
+                        </label>
+                        <textarea
+                          value={noteText}
+                          onChange={(e) => setNoteText(e.target.value)}
+                          placeholder="Any additional notes about this task completion..."
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none transition-all"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleCompleteTask(task, noteText)}
+                          disabled={completingTaskId === task.id}
+                          className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
+                        >
+                          {completingTaskId === task.id ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              Completing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-5 h-5" />
+                              Complete Task
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancelNote}
+                          disabled={completingTaskId === task.id}
+                          className="px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleShowNoteInput(task.id)}
+                      disabled={completingTaskId === task.id}
+                      className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      Complete Task
+                    </button>
+                  )}
                   <button
-                    onClick={() => handleCompleteTask(task, noteText)}
-                    disabled={completingTaskId === task.id}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
+                    onClick={() => handleDeleteTask(task.id)}
+                    disabled={deletingTaskId === task.id || completingTaskId === task.id}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 px-5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+                    title="Delete task"
                   >
-                    {completingTaskId === task.id ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Completing...
-                      </>
+                    {deletingTaskId === task.id ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Complete Task
-                      </>
+                      <Trash2 className="w-5 h-5" />
                     )}
                   </button>
-                  <button
-                    onClick={handleCancelNote}
-                    disabled={completingTaskId === task.id}
-                    className="px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Cancel
-                  </button>
                 </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => handleShowNoteInput(task.id)}
-                disabled={completingTaskId === task.id}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                Complete Task
-              </button>
+              </>
             )}
-            <button
-              onClick={() => handleDeleteTask(task.id)}
-              disabled={deletingTaskId === task.id || completingTaskId === task.id}
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 px-5 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-              title="Delete task"
-            >
-              {deletingTaskId === task.id ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Trash2 className="w-5 h-5" />
-              )}
-            </button>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
