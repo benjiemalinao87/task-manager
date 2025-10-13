@@ -170,50 +170,28 @@ tasks.post('/', async (c) => {
     const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
       .bind(taskId).first();
 
-    // Trigger AI summary generation in the background
-    const authHeader = c.req.header('Authorization') || '';
-    
-    // Use the custom domain if available, otherwise fall back to worker URL
-    const requestUrl = new URL(c.req.url);
-    const host = requestUrl.host.includes('workoto.app') 
-      ? 'api.workoto.app' 
-      : requestUrl.host;
-    const apiUrl = `https://${host}/api/ai/generate-summary`;
-    
-    console.log('Triggering AI summary generation:', apiUrl);
-    
-    c.executionCtx.waitUntil(
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          taskId, 
-          taskName, 
-          description, 
-          estimatedTime, 
-          sendEmail: true 
-        })
-      })
-      .then(response => {
-        console.log('AI summary response status:', response.status);
-        if (!response.ok) {
-          return response.text().then(text => {
-            console.error('AI summary error response:', text);
-            throw new Error(`AI summary failed with status ${response.status}: ${text}`);
-          });
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('AI summary result:', data);
-      })
-      .catch(err => {
-        console.error('AI summary failed:', err);
-      })
-    );
+    // Send task creation email immediately
+    try {
+      // Get user email
+      const user = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?')
+        .bind(auth.userId).first<{ email: string }>();
+      
+      if (user?.email) {
+        await c.env.EMAIL_QUEUE.send({
+          type: 'task_created',
+          userId: auth.userId,
+          email: user.email,
+          task: {
+            name: taskName,
+            description,
+            estimatedTime
+          }
+        });
+        console.log('✅ Task creation email queued for:', user.email);
+      }
+    } catch (err) {
+      console.error('Failed to queue task creation email:', err);
+    }
 
     return c.json(task, 201);
 
