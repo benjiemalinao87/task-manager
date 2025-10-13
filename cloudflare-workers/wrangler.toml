@@ -42,13 +42,13 @@ queue = "ai-queue-dev"
 [[env.development.queues.consumers]]
 queue = "email-queue-dev"
 max_batch_size = 10
-max_batch_timeout = 30
+max_batch_timeout = 5
 max_retries = 3
 
 [[env.development.queues.consumers]]
 queue = "ai-queue-dev"
 max_batch_size = 1
-max_batch_timeout = 60
+max_batch_timeout = 5
 max_retries = 2
 
 # ===================================
@@ -79,7 +79,7 @@ queue = "email-queue-prod"
 [[env.production.queues.consumers]]
 queue = "email-queue-prod"
 max_batch_size = 10
-max_batch_timeout = 30
+max_batch_timeout = 5
 max_retries = 3
 
 # Uncomment when you have a domain:
