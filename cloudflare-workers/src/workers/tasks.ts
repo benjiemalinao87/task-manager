@@ -172,10 +172,13 @@ tasks.post('/', async (c) => {
 
     // Trigger AI summary generation in the background
     const authHeader = c.req.header('Authorization') || '';
-    const requestUrl = new URL(c.req.url);
     
-    // Construct the API URL (handles both custom domain and worker URL)
-    const apiUrl = `${requestUrl.protocol}//${requestUrl.host}/api/ai/generate-summary`;
+    // Use the custom domain if available, otherwise fall back to worker URL
+    const requestUrl = new URL(c.req.url);
+    const host = requestUrl.host.includes('workoto.app') 
+      ? 'api.workoto.app' 
+      : requestUrl.host;
+    const apiUrl = `https://${host}/api/ai/generate-summary`;
     
     console.log('Triggering AI summary generation:', apiUrl);
     
@@ -196,6 +199,12 @@ tasks.post('/', async (c) => {
       })
       .then(response => {
         console.log('AI summary response status:', response.status);
+        if (!response.ok) {
+          return response.text().then(text => {
+            console.error('AI summary error response:', text);
+            throw new Error(`AI summary failed with status ${response.status}: ${text}`);
+          });
+        }
         return response.json();
       })
       .then(data => {
