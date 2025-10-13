@@ -170,27 +170,20 @@ tasks.post('/', async (c) => {
     const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
       .bind(taskId).first();
 
-    // Send task creation email immediately
+    // Queue AI summary generation (which will also send the email with AI summary)
     try {
-      // Get user email
-      const user = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?')
-        .bind(auth.userId).first<{ email: string }>();
-      
-      if (user?.email) {
-        await c.env.EMAIL_QUEUE.send({
-          type: 'task_created',
-          userId: auth.userId,
-          email: user.email,
-          task: {
-            name: taskName,
-            description,
-            estimatedTime
-          }
-        });
-        console.log('✅ Task creation email queued for:', user.email);
-      }
+      await c.env.AI_QUEUE.send({
+        type: 'generate_summary',
+        userId: auth.userId,
+        taskId,
+        taskName,
+        description,
+        estimatedTime,
+        sendEmail: true
+      });
+      console.log(`✅ AI summary generation queued for task ${taskId}`);
     } catch (err) {
-      console.error('Failed to queue task creation email:', err);
+      console.error('Failed to queue AI summary generation:', err);
     }
 
     return c.json(task, 201);

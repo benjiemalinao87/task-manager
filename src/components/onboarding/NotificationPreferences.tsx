@@ -7,6 +7,8 @@ interface NotificationPreferencesProps {
 }
 
 export function NotificationPreferences({ onComplete }: NotificationPreferencesProps) {
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [preferences, setPreferences] = useState({
     notifyTaskCreated: true,
     notifyTaskCompleted: true,
@@ -22,10 +24,57 @@ export function NotificationPreferences({ onComplete }: NotificationPreferencesP
     }));
   };
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateEmails = (emailString: string): { valid: boolean; error?: string; count?: number } => {
+    const emails = emailString.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    
+    if (emails.length === 0) {
+      return { valid: false, error: 'At least one email address is required' };
+    }
+
+    if (emails.length > 5) {
+      return { valid: false, error: 'Maximum 5 email addresses allowed' };
+    }
+
+    const invalidEmails = emails.filter(e => !validateEmail(e));
+    
+    if (invalidEmails.length > 0) {
+      return { 
+        valid: false, 
+        error: `Invalid email format: ${invalidEmails[0]}` 
+      };
+    }
+
+    return { valid: true, count: emails.length };
+  };
+
   const handleSubmit = async () => {
+    // Validate email(s)
+    if (!email.trim()) {
+      setEmailError('Email address is required');
+      return;
+    }
+    
+    const validation = validateEmails(email);
+    if (!validation.valid) {
+      setEmailError(validation.error || 'Invalid email address');
+      return;
+    }
+
     setIsSubmitting(true);
+    setEmailError('');
+    
     try {
+      // Save notification preferences
       await apiClient.saveNotificationPreferences(preferences);
+      
+      // Save default email to settings (comma-separated for multiple emails)
+      await apiClient.updateSettings({ default_email: email.trim() });
+      
       onComplete();
     } catch (error) {
       console.error('Error saving notification preferences:', error);
@@ -60,6 +109,44 @@ export function NotificationPreferences({ onComplete }: NotificationPreferencesP
           </h1>
           <p className="text-gray-600">
             Choose which notifications you'd like to receive. You can always change these later in settings.
+          </p>
+        </div>
+
+        {/* Email Input */}
+        <div className="mb-6">
+          <label htmlFor="notification-email" className="block text-sm font-semibold text-gray-700 mb-2">
+            📧 Notification Email Address(es)
+          </label>
+          <input
+            id="notification-email"
+            type="text"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setEmailError('');
+            }}
+            placeholder="user@email.com, manager@email.com, supervisor@email.com"
+            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+              emailError
+                ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+            }`}
+          />
+          {emailError && (
+            <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+              <span className="font-medium">⚠️</span> {emailError}
+            </p>
+          )}
+          {!emailError && email.trim() && (() => {
+            const count = email.split(',').map(e => e.trim()).filter(e => e.length > 0).length;
+            return (
+              <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                <span className="font-medium">✓</span> {count} email {count === 1 ? 'address' : 'addresses'} will receive notifications
+              </p>
+            );
+          })()}
+          <p className="mt-2 text-sm text-gray-500">
+            Add multiple emails separated by commas (e.g., for supervisor, manager). Max 5 emails.
           </p>
         </div>
 

@@ -785,3 +785,108 @@ Possible improvements:
 
 **Status:** ✅ Implemented and deployed  
 **Date:** October 13, 2025
+
+---
+
+## Feature: AI Summary Queue System & Email Subject Customization (Oct 12, 2025)
+
+### Problem: Worker-to-Worker HTTP Calls Timing Out
+**Issue:** When creating tasks, the system made HTTP calls from the tasks worker to the AI worker, resulting in 522 timeout errors. This prevented AI summaries from being generated and emails from being sent.
+
+### Root Cause
+Cloudflare Workers have strict timeout limits for HTTP requests. Making internal worker-to-worker HTTP calls caused:
+- 522 Connection Timeout errors
+- No AI summary generation
+- No email notifications
+
+### Solution: Cloudflare Queues Architecture
+Implemented a **queue-based system** similar to the Supabase Edge Functions implementation:
+
+**New Flow:**
+1. Create task → Save to database ✅
+2. Queue AI summary job → Return immediately ✅
+3. Background AI consumer → Generate summary → Update task → Send email with AI summary ✅
+
+**Files Modified:**
+1. **`wrangler.toml`** - Added AI queue configuration
+2. **`types/index.ts`** - Added `AI_QUEUE` binding and `AIMessage` type
+3. **`workers/ai-consumer.ts`** (NEW) - Background AI summary processor
+4. **`index.ts`** - Routes queue messages to correct consumers
+5. **`workers/tasks.ts`** - Changed from HTTP call to queue-based
+
+**Key Benefits:**
+- ✅ No timeouts - immediate response to user
+- ✅ Reliable AI summary generation in background
+- ✅ Email includes AI summary
+- ✅ Scalable architecture
+
+### Feature: Email Subject Line Customization
+
+**What Was Added:**
+- Database columns: `email_subject_task_created` and `email_subject_task_completed`
+- Settings UI to customize email subjects
+- Placeholder support: `{task_name}` gets replaced with actual task name
+- Email consumer already supported this feature (lines 48-64)
+
+**Example:**
+```
+Custom Subject: "New Task Created: {task_name}"
+Actual Email: "New Task Created: Create Voice AI Demo"
+```
+
+### Feature: Onboarding Email Input
+
+**Problem:** Users couldn't specify which email address to receive notifications at during onboarding.
+
+**Solution:** Added email input field to onboarding flow:
+- ✅ Email validation (required, valid format)
+- ✅ Saves to `settings.default_email`
+- ✅ Used for all task notifications
+- ✅ Clear error messaging
+
+**Files Modified:**
+- `src/components/onboarding/NotificationPreferences.tsx`
+
+**Implementation:**
+```typescript
+const handleSubmit = async () => {
+  // Validate email
+  if (!email.trim()) {
+    setEmailError('Email address is required');
+    return;
+  }
+  
+  if (!validateEmail(email)) {
+    setEmailError('Please enter a valid email address');
+    return;
+  }
+
+  // Save notification preferences
+  await apiClient.saveNotificationPreferences(preferences);
+  
+  // Save default email to settings
+  await apiClient.updateSettings({ default_email: email });
+  
+  onComplete();
+};
+```
+
+### Lessons Learned
+1. **Avoid HTTP calls between workers** - Use Cloudflare Queues for async operations
+2. **Queue-based architecture** is more reliable for time-consuming tasks like AI generation
+3. **Email consumer design** was already flexible enough to support custom subjects
+4. **Onboarding UX** should capture critical user preferences upfront (like notification email)
+5. **Validation** is crucial - validate email format before saving
+
+### How NOT to Do It
+❌ Don't make HTTP calls between Cloudflare Workers for long operations
+❌ Don't skip email validation in onboarding
+❌ Don't assume the user's account email is where they want notifications
+
+### How to Do It Right
+✅ Use Cloudflare Queues for background jobs
+✅ Implement proper email validation with clear error messages
+✅ Ask users for their notification email during onboarding
+✅ Design email templates with placeholder support for customization
+✅ Log all queue processing steps for debugging
+

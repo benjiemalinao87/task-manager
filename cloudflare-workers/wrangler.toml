@@ -35,11 +35,21 @@ id = "765c7311eb1a4e05be3ef67cc494bd41"
 binding = "EMAIL_QUEUE"
 queue = "email-queue-dev"
 
+[[env.development.queues.producers]]
+binding = "AI_QUEUE"
+queue = "ai-queue-dev"
+
 [[env.development.queues.consumers]]
 queue = "email-queue-dev"
 max_batch_size = 10
 max_batch_timeout = 30
 max_retries = 3
+
+[[env.development.queues.consumers]]
+queue = "ai-queue-dev"
+max_batch_size = 1
+max_batch_timeout = 60
+max_retries = 2
 
 # ===================================
 # PRODUCTION ENVIRONMENT

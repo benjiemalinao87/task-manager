@@ -8,12 +8,41 @@ interface SettingsProps {
 
 export function Settings({ onClose }: SettingsProps) {
   const [defaultEmail, setDefaultEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
   }, []);
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateEmails = (emailString: string): { valid: boolean; error?: string; count?: number } => {
+    if (!emailString.trim()) {
+      return { valid: true, count: 0 }; // Empty is allowed in settings
+    }
+
+    const emails = emailString.split(',').map(e => e.trim()).filter(e => e.length > 0);
+    
+    if (emails.length > 5) {
+      return { valid: false, error: 'Maximum 5 email addresses allowed' };
+    }
+
+    const invalidEmails = emails.filter(e => !validateEmail(e));
+    
+    if (invalidEmails.length > 0) {
+      return { 
+        valid: false, 
+        error: `Invalid email format: ${invalidEmails[0]}` 
+      };
+    }
+
+    return { valid: true, count: emails.length };
+  };
 
   const loadSettings = async () => {
     try {
@@ -34,19 +63,28 @@ export function Settings({ onClose }: SettingsProps) {
   };
 
   const handleSave = async () => {
+    // Validate emails
+    const validation = validateEmails(defaultEmail);
+    if (!validation.valid) {
+      setEmailError(validation.error || 'Invalid email address');
+      return;
+    }
+
     setIsSaving(true);
+    setEmailError('');
+    
     try {
       if (settingsId) {
         const { error } = await supabase
           .from('settings')
-          .update({ default_email: defaultEmail, updated_at: new Date().toISOString() })
+          .update({ default_email: defaultEmail.trim(), updated_at: new Date().toISOString() })
           .eq('id', settingsId);
 
         if (error) throw error;
       } else {
         const { data, error } = await supabase
           .from('settings')
-          .insert({ default_email: defaultEmail })
+          .insert({ default_email: defaultEmail.trim() })
           .select()
           .maybeSingle();
 
@@ -75,6 +113,7 @@ export function Settings({ onClose }: SettingsProps) {
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
+            title="Close settings"
           >
             <X className="w-6 h-6" />
           </button>
@@ -86,18 +125,38 @@ export function Settings({ onClose }: SettingsProps) {
               Default Email Destinations
             </label>
             <p className="text-sm text-gray-500 mb-3">
-              Enter email addresses separated by commas for multiple recipients
+              Enter email addresses separated by commas for multiple recipients (e.g., notify supervisor, manager)
             </p>
             <input
               type="text"
               id="defaultEmail"
               value={defaultEmail}
-              onChange={(e) => setDefaultEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="email1@example.com, email2@example.com"
+              onChange={(e) => {
+                setDefaultEmail(e.target.value);
+                setEmailError('');
+              }}
+              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-all ${
+                emailError
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+              placeholder="user@email.com, manager@email.com, supervisor@email.com"
             />
+            {emailError && (
+              <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                <span className="font-medium">⚠️</span> {emailError}
+              </p>
+            )}
+            {!emailError && defaultEmail.trim() && (() => {
+              const count = defaultEmail.split(',').map(e => e.trim()).filter(e => e.length > 0).length;
+              return (
+                <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                  <span className="font-medium">✓</span> {count} email {count === 1 ? 'address' : 'addresses'} configured
+                </p>
+              );
+            })()}
             <p className="text-xs text-gray-400 mt-2">
-              Example: john@example.com, jane@example.com
+              Max 5 email addresses. Example: john@example.com, jane@example.com
             </p>
           </div>
 

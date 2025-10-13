@@ -96,7 +96,9 @@ settings.patch('/', async (c) => {
       'notify_task_completed',
       'notify_daily_summary',
       'notify_weekly_summary',
-      'onboarding_completed'
+      'onboarding_completed',
+      'email_subject_task_created',
+      'email_subject_task_completed'
     ];
 
     const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));

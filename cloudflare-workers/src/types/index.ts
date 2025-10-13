@@ -3,6 +3,7 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   EMAIL_QUEUE: Queue;
+  AI_QUEUE: Queue;
   JWT_SECRET: string;
   OPENAI_API_KEY: string;
   RESEND_API_KEY: string;  // Default email provider (customerconnects.com)
@@ -50,6 +51,12 @@ export interface Settings {
   default_email: string;
   timezone: string;
   notifications_enabled: number;
+  notify_task_created: number;
+  notify_task_completed: number;
+  notify_daily_summary: number;
+  notify_weekly_summary: number;
+  email_subject_task_created: string;
+  email_subject_task_completed: string;
   created_at: string;
   updated_at: string;
 }
@@ -138,4 +145,15 @@ export interface EmailMessage {
     notes?: string;
   };
   sessionId?: string;
+}
+
+// AI queue messages
+export interface AIMessage {
+  type: 'generate_summary';
+  userId: string;
+  taskId: string;
+  taskName: string;
+  description: string;
+  estimatedTime: string;
+  sendEmail: boolean;
 }

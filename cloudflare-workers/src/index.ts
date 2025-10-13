@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from './types';
 import emailConsumer from './workers/email-consumer';
+import aiConsumer from './workers/ai-consumer';
 
 // Import workers
 import auth from './workers/auth';
@@ -46,8 +47,18 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
-// Export both HTTP handler and Queue consumer
+// Export HTTP handler and Queue consumers
 export default {
   fetch: app.fetch,
-  queue: emailConsumer.queue,
+  // Route queue messages to the appropriate consumer based on queue name
+  async queue(batch: MessageBatch, env: Env): Promise<void> {
+    // Check which queue this batch is for
+    if (batch.queue === 'email-queue-dev' || batch.queue === 'email-queue-prod') {
+      return emailConsumer.queue(batch as MessageBatch<any>, env);
+    } else if (batch.queue === 'ai-queue-dev' || batch.queue === 'ai-queue-prod') {
+      return aiConsumer.queue(batch as MessageBatch<any>, env);
+    } else {
+      console.error(`Unknown queue: ${batch.queue}`);
+    }
+  },
 };

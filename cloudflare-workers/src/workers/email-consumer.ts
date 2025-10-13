@@ -87,6 +87,17 @@ export default {
           LIMIT 1
         `).bind(userId).first();
 
+        // Parse comma-separated emails
+        const emailAddresses = email.split(',').map(e => e.trim()).filter(e => e.length > 0);
+        
+        if (emailAddresses.length === 0) {
+          console.error('No valid email addresses found');
+          message.ack();
+          continue;
+        }
+
+        console.log(`Sending email to ${emailAddresses.length} recipient(s): ${emailAddresses.join(', ')}`);
+
         let emailSent = false;
 
         // If user has their own integration, use it
@@ -95,7 +106,7 @@ export default {
           
           if (userIntegration.integration_type === 'sendgrid') {
             emailSent = await sendViaSendGrid(
-              email,
+              emailAddresses,
               subject,
               emailHtml,
               userIntegration.api_key as string,
@@ -104,7 +115,7 @@ export default {
             );
           } else if (userIntegration.integration_type === 'resend') {
             emailSent = await sendViaResend(
-              email,
+              emailAddresses,
               subject,
               emailHtml,
               userIntegration.api_key as string,
@@ -116,7 +127,7 @@ export default {
           // Use default Resend integration (customerconnects.com)
           console.log(`Using default Resend integration for user ${userId}`);
           emailSent = await sendViaResend(
-            email,
+            emailAddresses,
             subject,
             emailHtml,
             env.RESEND_API_KEY,
@@ -129,7 +140,7 @@ export default {
           throw new Error('Email sending failed');
         }
 
-        console.log(`Email sent successfully to ${email}`);
+        console.log(`Email sent successfully to ${emailAddresses.length} recipient(s)`);
         
         // Mark as processed
         message.ack();
@@ -145,7 +156,7 @@ export default {
 
 // Send email via SendGrid
 async function sendViaSendGrid(
-  to: string,
+  to: string[],
   subject: string,
   html: string,
   apiKey: string,
@@ -160,7 +171,10 @@ async function sendViaSendGrid(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }], subject }],
+        personalizations: [{ 
+          to: to.map(email => ({ email })), 
+          subject 
+        }],
         from: { email: fromEmail, name: fromName },
         content: [{ type: 'text/html', value: html }],
       }),
@@ -181,7 +195,7 @@ async function sendViaSendGrid(
 
 // Send email via Resend
 async function sendViaResend(
-  to: string,
+  to: string[],
   subject: string,
   html: string,
   apiKey: string,
@@ -197,7 +211,7 @@ async function sendViaResend(
       },
       body: JSON.stringify({
         from: `${fromName} <${fromEmail}>`,
-        to: [to],
+        to: to,
         subject,
         html,
       }),
