@@ -70,6 +70,12 @@ export default {
             emailHtml = buildClockInEmail();
             break;
 
+          case 'daily_report':
+            const clockInDate = new Date(message.body.session?.clockIn || new Date());
+            subject = `Daily Work Report - ${clockInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}`;
+            emailHtml = buildDailyReportEmail(message.body.session!, message.body.tasks || []);
+            break;
+
           default:
             console.warn('Unknown email type:', type);
             message.ack();
@@ -778,5 +784,206 @@ function buildClockInEmail(): string {
       </div>
     </body>
     </html>
+  `;
+}
+
+function buildDailyReportEmail(session: any, tasks: any[]): string {
+  const clockInDate = new Date(session.clockIn);
+  const clockOutDate = new Date(session.clockOut);
+  const totalTasks = tasks.length;
+
+  const tasksHtml = tasks.length > 0
+    ? tasks.map((task, index) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 16px 12px; font-weight: 600; color: #374151;">${index + 1}</td>
+        <td style="padding: 16px 12px;">
+          <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${task.taskName}</div>
+          <div style="color: #6b7280; font-size: 14px; margin-bottom: 8px;">${task.description}</div>
+          ${task.aiSummary ? `
+            <div style="background: #dbeafe; border-left: 3px solid #3b82f6; padding: 8px 12px; margin-top: 8px; border-radius: 4px; font-size: 13px;">
+              <strong style="color: #1e40af;">🤖 AI Summary:</strong> ${task.aiSummary}
+            </div>
+          ` : ''}
+        </td>
+        <td style="padding: 16px 12px; text-align: center; color: #059669; font-weight: 500;">${task.estimatedTime}</td>
+        <td style="padding: 16px 12px; text-align: center; color: #7c3aed; font-weight: 500;">${task.actualTime}</td>
+      </tr>
+    `).join('')
+    : '<tr><td colspan="4" style="padding: 32px; text-align: center; color: #9ca3af;">No tasks were completed during this session.</td></tr>';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 700;
+    }
+    .header p {
+      margin: 8px 0 0 0;
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      padding: 30px;
+      background: #f8fafc;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: #2563eb;
+      margin: 8px 0;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 30px;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 0 0 20px 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th {
+      background: #f3f4f6;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #374151;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .footer {
+      text-align: center;
+      padding: 30px;
+      color: #6b7280;
+      font-size: 13px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #dcfce7;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Daily Work Report</h1>
+      <p>${clockInDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
+    </div>
+
+    <div class="summary-stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Tasks</div>
+        <div class="stat-value">${totalTasks}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Time Worked</div>
+        <div class="stat-value" style="font-size: 28px;">${session.durationFormatted}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Status</div>
+        <div class="stat-value" style="font-size: 20px;">
+          <span class="badge">Completed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <h2 class="section-title">⏰ Session Details</h2>
+      <table style="margin-bottom: 30px;">
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 12px; font-weight: 600; color: #6b7280; width: 150px;">Clock In</td>
+          <td style="padding: 12px;">${clockInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 12px; font-weight: 600; color: #6b7280;">Clock Out</td>
+          <td style="padding: 12px;">${clockOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Los_Angeles' })}</td>
+        </tr>
+        <tr>
+          <td style="padding: 12px; font-weight: 600; color: #6b7280;">Total Duration</td>
+          <td style="padding: 12px; font-weight: 700; color: #2563eb;">${session.durationFormatted}</td>
+        </tr>
+      </table>
+
+      <h2 class="section-title">✅ Tasks Completed</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">#</th>
+            <th>Task Details</th>
+            <th style="text-align: center; width: 120px;">Estimated</th>
+            <th style="text-align: center; width: 120px;">Actual</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tasksHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <p style="margin: 0;">This is an automated daily report from Task Manager.</p>
+      <p style="margin: 8px 0 0 0; color: #9ca3af;">Generated on ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}</p>
+    </div>
+  </div>
+</body>
+</html>
   `;
 }

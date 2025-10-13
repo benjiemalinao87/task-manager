@@ -145,6 +145,19 @@ export interface EmailMessage {
     notes?: string;
   };
   sessionId?: string;
+  session?: {
+    clockIn: string;
+    clockOut: string;
+    durationMinutes: number;
+    durationFormatted: string;
+  };
+  tasks?: Array<{
+    taskName: string;
+    description: string;
+    estimatedTime: string;
+    actualTime: string;
+    aiSummary: string | null;
+  }>;
 }
 
 // AI queue messages
