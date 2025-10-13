@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Clock, Mail, BarChart3, Zap, Shield, ArrowRight, CheckSquare } from 'lucide-react';
+import { CheckCircle2, Clock, Mail, BarChart3, Zap, Shield, ArrowRight, CheckSquare, X } from 'lucide-react';
 import { PricingPage } from './PricingPage';
 import { AboutPage } from './AboutPage';
 
@@ -10,6 +10,7 @@ interface LandingPageProps {
 export function LandingPage({ onGetStarted }: LandingPageProps) {
   const [showPricing, setShowPricing] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   // Show pricing page
   if (showPricing) {
@@ -52,7 +53,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             <button onClick={onGetStarted} className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
               Start Free Trial <ArrowRight className="w-5 h-5" />
             </button>
-            <button className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
+            <button onClick={() => setShowVideoModal(true)} className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
               Watch Demo
             </button>
           </div>
@@ -569,6 +570,34 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
         </div>
       </footer>
+
+      {/* Video Modal */}
+      {showVideoModal && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowVideoModal(false)}
+        >
+          <div
+            className="relative w-full max-w-5xl bg-black rounded-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowVideoModal(false)}
+              className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <video
+              className="w-full"
+              controls
+              autoPlay
+              src="https://pub-fa3ef00e8d754636901866f47a0dd88f.r2.dev/Workoto%20-%20Made%20with%20Clipchamp.mp4"
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
