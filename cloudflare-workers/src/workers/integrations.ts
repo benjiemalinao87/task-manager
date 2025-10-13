@@ -5,6 +5,12 @@ import { getCurrentTimestamp, generateId } from '../utils/crypto';
 
 const integrations = new Hono<{ Bindings: Env }>();
 
+// Helper function to validate email format
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 // GET /api/integrations - Get all user's integrations
 integrations.get('/', async (c) => {
   const auth = await requireAuth(c.req.raw, c.env);
@@ -73,6 +79,19 @@ integrations.post('/', async (c) => {
 
     if (!api_key) {
       return c.json({ error: 'API key is required' }, 400);
+    }
+
+    // Validate Asana config if provided
+    if (integration_type === 'asana' && config) {
+      const configObj = typeof config === 'string' ? JSON.parse(config) : config;
+      
+      if (configObj.default_assignee_email) {
+        if (!isValidEmail(configObj.default_assignee_email)) {
+          return c.json({ 
+            error: 'Invalid email format for default assignee. Please use a valid email address (e.g., user@example.com)' 
+          }, 400);
+        }
+      }
     }
 
     // Check if integration already exists

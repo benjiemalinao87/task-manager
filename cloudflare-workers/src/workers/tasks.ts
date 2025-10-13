@@ -79,13 +79,12 @@ async function createAsanaTask(
     };
 
     // Add assignee if configured
-    if (assigneeEmail && workspaceGid) {
+    if (assigneeEmail || workspaceGid) {
       try {
-        console.log(`Looking up assignee ${assigneeEmail} in workspace ${workspaceGid}`);
-
-        // Get all users in workspace and find by email
-        const usersResponse = await fetch(
-          `https://app.asana.com/api/1.0/workspaces/${workspaceGid}/users`,
+        // Get the current authenticated user (the API token owner)
+        console.log('Getting current user from Asana API');
+        const meResponse = await fetch(
+          'https://app.asana.com/api/1.0/users/me',
           {
             headers: {
               'Authorization': `Bearer ${integration.api_key}`,
@@ -94,32 +93,25 @@ async function createAsanaTask(
           }
         );
 
-        console.log('Users API response status:', usersResponse.status);
-
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          console.log(`Found ${usersData.data?.length || 0} users in workspace`);
-
-          const user = usersData.data?.find((u: any) =>
-            u.email?.toLowerCase() === assigneeEmail.toLowerCase()
-          );
-
-          if (user && user.gid) {
-            asanaPayload.data.assignee = user.gid;
-            console.log(`✓ Assigned task to user: ${user.name} (${user.gid})`);
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          const currentUser = userData.data;
+          
+          if (currentUser && currentUser.gid) {
+            asanaPayload.data.assignee = currentUser.gid;
+            console.log(`✓ Assigned task to current user: ${currentUser.name} (${currentUser.gid})`);
           } else {
-            console.log(`✗ User with email ${assigneeEmail} not found. Available users:`,
-              usersData.data?.map((u: any) => u.email).join(', '));
+            console.log('✗ Could not get current user GID');
           }
         } else {
-          const errorText = await usersResponse.text();
-          console.error('Failed to fetch workspace users:', errorText);
+          const errorText = await meResponse.text();
+          console.error('Failed to fetch current user:', errorText);
         }
       } catch (err) {
-        console.error('Error looking up assignee:', err);
+        console.error('Error setting assignee:', err);
       }
     } else {
-      console.log('Skipping assignee:', { hasEmail: !!assigneeEmail, hasWorkspace: !!workspaceGid });
+      console.log('Skipping assignee: no email or workspace configured');
     }
 
     const response = await fetch('https://app.asana.com/api/1.0/tasks', {

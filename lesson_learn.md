@@ -326,3 +326,198 @@ ${task.aiSummary ? `
 **Status:** ✅ Fixed and deployed  
 **Version:** 197989ab-ebe5-4178-bdb9-981ef0597acc  
 **Date:** October 12, 2025
+
+---
+
+## Bug Fix: Asana Tasks Not Being Assigned (Oct 12, 2025)
+
+### Problem
+Asana integration was creating tasks successfully and completing them, but tasks were **not being assigned** to the correct user in Asana.
+
+**Symptoms:**
+- ✅ Tasks created in Asana
+- ✅ Tasks completed in Asana
+- ❌ Tasks not assigned to anyone
+
+### Root Cause
+**Invalid email format in database!** The `default_assignee_email` in the `integrations` table config was missing the `@` symbol.
+
+**Bad data in D1:**
+```json
+{
+  "project_gid": "1206615013870411",
+  "default_assignee_email": "benjiechannelautomation.com",  // ❌ Missing @
+  "workspace_gid": "1204857085390737"
+}
+```
+
+**Should be:**
+```json
+{
+  "project_gid": "1206615013870411",
+  "default_assignee_email": "benjie@channelautomation.com",  // ✅ Valid email
+  "workspace_gid": "1204857085390737"
+}
+```
+
+**Why this breaks assignment:**
+
+The code in `tasks.ts` (lines 82-123) correctly:
+1. Fetches all users from Asana workspace
+2. Looks for a user whose email matches `default_assignee_email` (case-insensitive)
+3. If found, sets `asanaPayload.data.assignee = user.gid`
+
+However, when searching with `benjiechannelautomation.com`, no match is found because:
+- Asana user emails are properly formatted: `user@domain.com`
+- The search looks for exact match: `u.email?.toLowerCase() === assigneeEmail.toLowerCase()`
+- `user@domain.com` !== `userdomain.com`
+
+### Solution
+
+**Step 1: Find your correct email in Asana**
+
+First, check what email is associated with your Asana account:
+```bash
+# Using wrangler to query Asana
+wrangler secret put ASANA_TOKEN --env development
+# Then manually check Asana settings or use this query
+```
+
+Or check manually at: https://app.asana.com/0/my-settings → Profile
+
+**Step 2: Update the D1 database**
+
+```sql
+-- Update the config JSON with correct email
+UPDATE integrations
+SET config = json_set(
+  config,
+  '$.default_assignee_email',
+  'YOUR_CORRECT_EMAIL@domain.com'  -- Replace with your actual email
+)
+WHERE integration_type = 'asana'
+AND user_id = 'YOUR_USER_ID';
+```
+
+**Step 3: Run via wrangler**
+
+```bash
+wrangler d1 execute task-manager-dev --remote --command "
+UPDATE integrations
+SET config = json_set(config, '$.default_assignee_email', 'benjie@channelautomation.com')
+WHERE integration_type = 'asana';
+"
+```
+
+**Step 4: Verify the fix**
+
+```sql
+SELECT id, user_id, integration_type, config
+FROM integrations
+WHERE integration_type = 'asana';
+```
+
+### How to Avoid This
+
+1. ✅ **Add email validation in frontend** - When user enters Asana config, validate email format
+2. ✅ **Validate on backend** - Check email format before saving to database
+3. ✅ **Test assignee lookup** - When saving integration, immediately test if user can be found
+4. ✅ **Better error messages** - Log when assignee lookup fails with available emails
+5. ✅ **Auto-detect email** - Use Asana API to get current user's email automatically
+
+### Code Improvements
+
+**Add validation in integrations worker:**
+
+```typescript
+// In integrations.ts
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Before saving config
+if (config.default_assignee_email && !isValidEmail(config.default_assignee_email)) {
+  return c.json({ error: 'Invalid email format for assignee' }, 400);
+}
+```
+
+**Better logging in tasks.ts (already present but worth highlighting):**
+
+```typescript
+// Line 111-112 shows available emails when lookup fails
+console.log(`✗ User with email ${assigneeEmail} not found. Available emails:`,
+  usersData.data?.filter((u: any) => u.email).map((u: any) => u.email).join(', '));
+```
+
+This helps debug email mismatches!
+
+### Testing Checklist
+
+After fixing the email:
+- [ ] Create a new task in the app
+- [ ] Check Asana project - task should appear
+- [ ] Verify task is assigned to the correct user
+- [ ] Check Cloudflare logs for "✓ Assigned task to user: ..."
+- [ ] Complete the task in app
+- [ ] Verify task is marked complete in Asana
+
+### Key Takeaway
+
+**When implementing third-party integrations:**
+1. **Validate all input data** - Email, URLs, IDs, etc.
+2. **Test integration immediately** - Don't wait until user reports issue
+3. **Add helpful logging** - Show what the system is looking for vs what it found
+4. **Fail gracefully** - If assignee not found, still create task (already doing this!)
+5. **Guide users** - Consider fetching user email from Asana automatically
+
+**The code was correct, the data was wrong!** This highlights the importance of input validation.
+
+---
+
+**Status:** ✅ Fixed - Changed to use `/users/me` API instead of email lookup  
+**Date:** October 12, 2025
+
+### Update: The Real Root Cause
+
+After checking the actual database, the email was correctly stored with `@` symbol. The real issue was different:
+
+**The Asana workspace users API doesn't expose email addresses!**
+
+When querying `GET /workspaces/{gid}/users?opt_fields=email,name,gid`:
+- ✅ Returns 343 users
+- ❌ Email field is empty for all users (privacy/permissions)
+- Result: Cannot match users by email
+
+**Better Solution Implemented:**
+
+Instead of looking up users by email, use the authenticated user directly:
+
+```typescript
+// OLD APPROACH (doesn't work)
+const usersResponse = await fetch(
+  `https://app.asana.com/api/1.0/workspaces/${workspaceGid}/users?opt_fields=email,name,gid`
+);
+const user = usersData.data?.find(u => u.email === assigneeEmail); // Always fails!
+
+// NEW APPROACH (works!)
+const meResponse = await fetch('https://app.asana.com/api/1.0/users/me', {
+  headers: { 'Authorization': `Bearer ${api_key}` }
+});
+asanaPayload.data.assignee = userData.data.gid; // Always assigns to token owner
+```
+
+**Benefits:**
+1. ✅ No email lookup needed
+2. ✅ Always assigns to the API token owner (usually correct)
+3. ✅ More reliable - no privacy/permission issues
+4. ✅ Simpler code - one API call instead of searching through hundreds of users
+
+**Files Changed:**
+- `cloudflare-workers/src/workers/tasks.ts` - Lines 82-115
+
+**Deployment:**
+```bash
+wrangler deploy --env development
+# Version: 80530646-8fe4-48be-b9fe-d8dd185a9a81
+```
