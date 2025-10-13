@@ -890,3 +890,136 @@ const handleSubmit = async () => {
 ✅ Design email templates with placeholder support for customization
 ✅ Log all queue processing steps for debugging
 
+---
+
+## Bug Fix: Hardcoded User Name in Email Notifications (Oct 13, 2025)
+
+### Problem
+**Critical multi-tenant bug!** When users signed up and created tasks, they received email notifications with the developer's name "Benjie Malinao" instead of their own name.
+
+**User Impact:**
+- ❌ New user creates task → Email says "Benjie Malinao just added a new task"
+- ❌ User completes task → Email says "Benjie Malinao just finished a task"
+- ❌ Looks unprofessional and breaks user trust
+- ❌ Privacy concern - wrong user identity in emails
+
+### Root Cause
+**Hardcoded developer name in email templates!** The email consumer was not fetching the actual user's name from the database.
+
+**Buggy code (email-consumer.ts):**
+```typescript
+// Line 408 - Task Created Email
+<h1>New Task Created!</h1>
+<p>Benjie Malinao just added a new task</p>  // ❌ HARDCODED!
+
+// Line 659 - Task Completed Email  
+<h1>Task Completed!</h1>
+<p>Benjie Malinao just finished a task</p>  // ❌ HARDCODED!
+```
+
+**Why this happened:**
+1. Email templates were copied from single-user prototype
+2. Never updated when app became multi-tenant
+3. No user context was passed to email building functions
+4. Wasn't caught in testing because developer only tested with own account
+
+### Solution
+
+**Step 1: Fetch user's name from database**
+```typescript
+// In email-consumer.ts queue handler
+const user = await env.DB.prepare(`
+  SELECT name FROM users WHERE id = ?
+`).bind(userId).first<{ name: string | null }>();
+
+const userName = user?.name || 'User';  // Fallback if name not set
+```
+
+**Step 2: Pass userName to all email building functions**
+```typescript
+// Updated function signatures
+function buildTaskCreatedEmail(task: any, userName: string): string
+function buildTaskCompletedEmail(task: any, userName: string): string  
+function buildClockInEmail(userName: string): string
+function buildDailyReportEmail(session: any, tasks: any[], userName: string): string
+
+// Updated function calls
+emailHtml = buildTaskCreatedEmail(task!, userName);
+emailHtml = buildTaskCompletedEmail(task!, userName);
+emailHtml = buildClockInEmail(userName);
+emailHtml = buildDailyReportEmail(session!, tasks || [], userName);
+```
+
+**Step 3: Use dynamic userName in templates**
+```typescript
+// Task Created Email (Line 415)
+<h1>New Task Created!</h1>
+<p>${userName} just added a new task</p>  // ✅ DYNAMIC!
+
+// Task Completed Email (Line 666)
+<h1>Task Completed!</h1>
+<p>${userName} just finished a task</p>  // ✅ DYNAMIC!
+
+// Clock In Email (Line 781)
+<h1>⏰ Clocked In</h1>
+<p>${userName} just started a work session</p>  // ✅ DYNAMIC!
+
+// Daily Report Email (Line 936)
+<h1>📊 Daily Work Report</h1>
+<p>${userName}'s work summary for ${date}</p>  // ✅ DYNAMIC!
+```
+
+### How to Avoid This
+
+1. ✅ **Never hardcode user-specific data** - Always fetch from database
+2. ✅ **Test with multiple user accounts** - Create test users, don't just test with your own account
+3. ✅ **Review email templates carefully** - Search for any hardcoded names, emails, or personal data
+4. ✅ **Use template variables** - Design templates to accept dynamic data from the start
+5. ✅ **Grep for your name** - Before deploying, search codebase for your personal info
+6. ✅ **Multi-tenant mindset** - Always think "What if another user does this?"
+
+### Testing Checklist
+
+- [ ] Create a new user account with different name
+- [ ] Create a task
+- [ ] Check email - should show NEW user's name, not "Benjie Malinao"
+- [ ] Complete the task  
+- [ ] Check email - should show NEW user's name
+- [ ] Clock in
+- [ ] Check email - should show NEW user's name
+- [ ] Clock out
+- [ ] Check daily report email - should show NEW user's name
+- [ ] Grep for "Benjie Malinao" - should only be in docs/inactive code
+
+### Files Modified
+
+1. `cloudflare-workers/src/workers/email-consumer.ts`:
+   - Added user name fetch from database (lines 14-18)
+   - Updated all email function signatures to accept userName
+   - Updated all email templates to use ${userName} instead of hardcoded name
+   - Lines changed: 14-18, 62, 72, 77, 83, 246, 415, 481, 666, 744, 781, 797, 936
+
+### Verification Command
+
+```bash
+# Ensure no hardcoded names in active code
+grep -r "Benjie Malinao" cloudflare-workers/src/
+# Should return nothing (or only comments)
+```
+
+### Key Takeaway
+
+**When building multi-tenant SaaS apps:**
+1. Every user-facing message must be personalized with their data
+2. Test with multiple distinct user accounts, not just your own
+3. Never copy-paste single-user code without removing hardcoded values
+4. Add user context to ALL notification/email functions
+5. Use grep to find your personal info before deploying
+
+**This is a trust-breaking bug!** Users expect personalized emails with THEIR name, not the developer's.
+
+---
+
+**Status:** ✅ Fixed and ready to deploy  
+**Date:** October 13, 2025
+

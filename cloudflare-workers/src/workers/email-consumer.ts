@@ -10,6 +10,13 @@ export default {
       try {
         const { type, userId, email, task } = message.body;
 
+        // Get user's name from the database
+        const user = await env.DB.prepare(`
+          SELECT name FROM users WHERE id = ?
+        `).bind(userId).first<{ name: string | null }>();
+
+        const userName = user?.name || 'User';
+
         // Get user's notification preferences and custom email subjects
         const settings = await env.DB.prepare(`
           SELECT notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary,
@@ -52,7 +59,7 @@ export default {
             } else {
               subject = `New Task: ${task?.name}`;
             }
-            emailHtml = buildTaskCreatedEmail(task!);
+            emailHtml = buildTaskCreatedEmail(task!, userName);
             break;
 
           case 'task_completed':
@@ -62,18 +69,18 @@ export default {
             } else {
               subject = `Task Completed: ${task?.name}`;
             }
-            emailHtml = buildTaskCompletedEmail(task!);
+            emailHtml = buildTaskCompletedEmail(task!, userName);
             break;
 
           case 'clock_in':
             subject = 'Clocked In';
-            emailHtml = buildClockInEmail();
+            emailHtml = buildClockInEmail(userName);
             break;
 
           case 'daily_report':
             const clockInDate = new Date(message.body.session?.clockIn || new Date());
             subject = `Daily Work Report - ${clockInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' })}`;
-            emailHtml = buildDailyReportEmail(message.body.session!, message.body.tasks || []);
+            emailHtml = buildDailyReportEmail(message.body.session!, message.body.tasks || [], userName);
             break;
 
           default:
@@ -236,7 +243,7 @@ async function sendViaResend(
   }
 }
 
-function buildTaskCreatedEmail(task: any): string {
+function buildTaskCreatedEmail(task: any, userName: string): string {
   const createdDate = new Date();
   const pstTime = createdDate.toLocaleString('en-US', {
     timeZone: 'America/Los_Angeles',
@@ -405,7 +412,7 @@ function buildTaskCreatedEmail(task: any): string {
     <div class="header">
       <div class="icon">✅</div>
       <h1>New Task Created!</h1>
-      <p>Benjie Malinao just added a new task</p>
+      <p>${userName} just added a new task</p>
     </div>
 
     <div class="content">
@@ -471,7 +478,7 @@ function buildTaskCreatedEmail(task: any): string {
   `;
 }
 
-function buildTaskCompletedEmail(task: any): string {
+function buildTaskCompletedEmail(task: any, userName: string): string {
   const completedDate = new Date();
   const pstTime = completedDate.toLocaleString('en-US', {
     timeZone: 'America/Los_Angeles',
@@ -656,7 +663,7 @@ function buildTaskCompletedEmail(task: any): string {
     <div class="header">
       <div class="icon">🎉</div>
       <h1>Task Completed!</h1>
-      <p>Benjie Malinao just finished a task</p>
+      <p>${userName} just finished a task</p>
     </div>
 
     <div class="content">
@@ -734,7 +741,7 @@ function buildTaskCompletedEmail(task: any): string {
   `;
 }
 
-function buildClockInEmail(): string {
+function buildClockInEmail(userName: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -771,6 +778,7 @@ function buildClockInEmail(): string {
       <div class="container">
         <div class="header">
           <h1 style="margin: 0;">⏰ Clocked In</h1>
+          <p style="margin: 12px 0 0 0; font-size: 18px; opacity: 0.95;">${userName} just started a work session</p>
         </div>
         <div class="content">
           <p style="font-size: 18px;">Work session started!</p>
@@ -787,7 +795,7 @@ function buildClockInEmail(): string {
   `;
 }
 
-function buildDailyReportEmail(session: any, tasks: any[]): string {
+function buildDailyReportEmail(session: any, tasks: any[], userName: string): string {
   const clockInDate = new Date(session.clockIn);
   const clockOutDate = new Date(session.clockOut);
   const totalTasks = tasks.length;
@@ -925,7 +933,7 @@ function buildDailyReportEmail(session: any, tasks: any[]): string {
   <div class="container">
     <div class="header">
       <h1>📊 Daily Work Report</h1>
-      <p>${clockInDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
+      <p>${userName}'s work summary for ${clockInDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' })}</p>
     </div>
 
     <div class="summary-stats">
