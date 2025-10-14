@@ -23,8 +23,8 @@ settings.get('/', async (c) => {
         `INSERT INTO settings (
           id, user_id, default_email, timezone, notifications_enabled,
           notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary,
-          onboarding_completed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          onboarding_completed, invoice_module_enabled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         settingsId,
         auth.userId,
@@ -33,6 +33,7 @@ settings.get('/', async (c) => {
         1,
         1,
         1,
+        0,
         0,
         0,
         0
@@ -71,8 +72,8 @@ settings.patch('/', async (c) => {
         `INSERT INTO settings (
           id, user_id, default_email, timezone, notifications_enabled,
           notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary,
-          onboarding_completed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          onboarding_completed, invoice_module_enabled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         settingsId,
         auth.userId,
@@ -81,6 +82,7 @@ settings.patch('/', async (c) => {
         1,
         1,
         1,
+        0,
         0,
         0,
         0
@@ -98,7 +100,8 @@ settings.patch('/', async (c) => {
       'notify_weekly_summary',
       'onboarding_completed',
       'email_subject_task_created',
-      'email_subject_task_completed'
+      'email_subject_task_completed',
+      'invoice_module_enabled'
     ];
 
     const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
@@ -152,8 +155,8 @@ settings.post('/notifications', async (c) => {
         `INSERT INTO settings (
           id, user_id, default_email, timezone, notifications_enabled,
           notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary,
-          onboarding_completed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          onboarding_completed, invoice_module_enabled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         settingsId,
         auth.userId,
@@ -164,7 +167,8 @@ settings.post('/notifications', async (c) => {
         notifyTaskCompleted ? 1 : 0,
         notifyDailySummary ? 1 : 0,
         notifyWeeklySummary ? 1 : 0,
-        1 // Mark onboarding as completed
+        1, // Mark onboarding as completed
+        0  // Invoice module disabled by default
       ).run();
     } else {
       // Update existing settings

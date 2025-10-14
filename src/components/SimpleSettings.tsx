@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Bell, Mail, Loader2, Settings } from 'lucide-react';
+import { X, Save, Bell, Mail, Loader2, Settings, FileText } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 
 interface SimpleSettingsProps {
   onClose: () => void;
   onOpenIntegrations: () => void;
+  onInvoiceToggle?: () => void;
 }
 
-export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsProps) {
+export function SimpleSettings({ onClose, onOpenIntegrations, onInvoiceToggle }: SimpleSettingsProps) {
   const [settings, setSettings] = useState({
     default_email: '',
     notify_task_created: true,
@@ -16,6 +17,7 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
     notify_weekly_summary: false,
     email_subject_task_created: '',
     email_subject_task_completed: '',
+    invoice_module_enabled: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -36,6 +38,7 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
         notify_weekly_summary: !!data.notify_weekly_summary,
         email_subject_task_created: data.email_subject_task_created || '',
         email_subject_task_completed: data.email_subject_task_completed || '',
+        invoice_module_enabled: !!data.invoice_module_enabled,
       });
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -57,8 +60,15 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
         notify_weekly_summary: settings.notify_weekly_summary ? 1 : 0,
         email_subject_task_created: settings.email_subject_task_created,
         email_subject_task_completed: settings.email_subject_task_completed,
+        invoice_module_enabled: settings.invoice_module_enabled ? 1 : 0,
       });
       setMessage('✅ Settings saved successfully!');
+
+      // Trigger invoice toggle callback if provided
+      if (onInvoiceToggle) {
+        onInvoiceToggle();
+      }
+
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -157,6 +167,36 @@ export function SimpleSettings({ onClose, onOpenIntegrations }: SimpleSettingsPr
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Feature Modules */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Feature Modules</h3>
+            <div className="space-y-3">
+              {/* Invoice Module Toggle */}
+              <label className="flex items-center gap-3 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer transition-all">
+                <input
+                  type="checkbox"
+                  checked={settings.invoice_module_enabled}
+                  onChange={(e) =>
+                    setSettings({ ...settings, invoice_module_enabled: e.target.checked })
+                  }
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex-grow">
+                  <div className="font-semibold text-gray-800 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    Invoice Module
+                  </div>
+                  <div className="text-sm text-gray-700 mt-1">
+                    Generate professional invoices from completed tasks, send via email, and track payments
+                  </div>
+                </div>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Enable the Invoices tab to create and manage client invoices
+            </p>
           </div>
 
           {/* Notification Preferences */}

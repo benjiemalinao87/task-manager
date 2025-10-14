@@ -197,6 +197,100 @@ class ApiClient {
   async getAsanaProjects(workspaceId: string) {
     return this.get<{ projects: any[] }>(`/api/integrations/asana/projects?workspace_id=${workspaceId}`);
   }
+
+  // Invoice methods
+  async getInvoices(status?: string) {
+    const query = status ? `?status=${status}` : '';
+    return this.get<any[]>(`/api/invoices${query}`);
+  }
+
+  async getInvoice(id: string) {
+    return this.get<any>(`/api/invoices/${id}`);
+  }
+
+  async createInvoice(data: {
+    clientName: string;
+    clientEmail?: string;
+    clientAddress?: string;
+    clientCompany?: string;
+    periodStart: string;
+    periodEnd: string;
+    invoiceDate: string;
+    dueDate?: string;
+    items: Array<{
+      taskId?: string;
+      description: string;
+      quantity: number;
+      rate: number;
+    }>;
+    taxRate?: number;
+    discountAmount?: number;
+    notes?: string;
+    paymentTerms?: string;
+  }) {
+    return this.post<any>('/api/invoices', data);
+  }
+
+  async updateInvoice(id: string, updates: any) {
+    return this.patch<any>(`/api/invoices/${id}`, updates);
+  }
+
+  async deleteInvoice(id: string) {
+    return this.delete<{ message: string }>(`/api/invoices/${id}`);
+  }
+
+  async sendInvoiceEmail(id: string, data: { to: string; subject?: string; message?: string }) {
+    return this.post<{ message: string }>(`/api/invoices/${id}/send`, data);
+  }
+
+  async generateInvoiceShareLink(id: string) {
+    return this.post<{ shareUrl: string; token: string }>(`/api/invoices/${id}/share`, {});
+  }
+
+  async getInvoiceByShareToken(token: string) {
+    return this.get<any>(`/api/invoices/share/${token}`);
+  }
+
+  async getBillableTasksForPeriod(periodStart: string, periodEnd: string) {
+    return this.get<any[]>(`/api/invoices/tasks?period_start=${periodStart}&period_end=${periodEnd}`);
+  }
+
+  // Invoice settings methods
+  async getInvoiceSettings() {
+    return this.get<any>('/api/invoice-settings');
+  }
+
+  async updateInvoiceSettings(updates: any) {
+    return this.patch<any>('/api/invoice-settings', updates);
+  }
+
+  // Client methods
+  async getClients() {
+    return this.get<any[]>('/api/clients');
+  }
+
+  async getClient(id: string) {
+    return this.get<any>(`/api/clients/${id}`);
+  }
+
+  async createClient(data: {
+    clientName: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    clientAddress?: string;
+    clientCompany?: string;
+    notes?: string;
+  }) {
+    return this.post<any>('/api/clients', data);
+  }
+
+  async updateClient(id: string, updates: any) {
+    return this.patch<any>(`/api/clients/${id}`, updates);
+  }
+
+  async deleteClient(id: string) {
+    return this.delete<{ message: string }>(`/api/clients/${id}`);
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

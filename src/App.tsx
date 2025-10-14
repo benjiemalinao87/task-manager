@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Settings as SettingsIcon, LogOut, CheckSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { NotificationPreferences } from './components/onboarding/NotificationPreferences';
@@ -14,13 +15,39 @@ import { TaskHistory } from './components/TaskHistory';
 import { CalendarView } from './components/CalendarView';
 import { TabNavigation } from './components/TabNavigation';
 import { TaskDetailView } from './components/TaskDetailView';
+import { Invoices } from './components/Invoices';
 
 function TaskManager() {
   const { user, logout } = useAuth();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar'>('manager');
+  const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar' | 'invoices'>('manager');
+  const [invoiceModuleEnabled, setInvoiceModuleEnabled] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const settings = await apiClient.getSettings();
+      setInvoiceModuleEnabled(!!settings.invoice_module_enabled);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const handleInvoiceToggle = async () => {
+    await loadSettings();
+    // If user disables invoices while on that tab, redirect to manager
+    if (activeTab === 'invoices') {
+      const settings = await apiClient.getSettings();
+      if (!settings.invoice_module_enabled) {
+        setActiveTab('manager');
+      }
+    }
+  };
 
   const handleTaskCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -76,7 +103,11 @@ function TaskManager() {
 
         {/* Tab Navigation */}
         <div className="mb-8">
-          <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+          <TabNavigation
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            showInvoices={invoiceModuleEnabled}
+          />
         </div>
 
         {/* Main Content Area */}
@@ -87,18 +118,21 @@ function TaskManager() {
           </div>
         ) : activeTab === 'calendar' ? (
           <CalendarView refreshTrigger={refreshTrigger} />
+        ) : activeTab === 'invoices' ? (
+          <Invoices />
         ) : (
           <TaskHistory refreshTrigger={refreshTrigger} />
         )}
       </div>
 
       {showSettings && (
-        <SimpleSettings 
-          onClose={() => setShowSettings(false)} 
+        <SimpleSettings
+          onClose={() => setShowSettings(false)}
           onOpenIntegrations={() => {
             setShowSettings(false);
             setShowIntegrations(true);
           }}
+          onInvoiceToggle={handleInvoiceToggle}
         />
       )}
       {showIntegrations && <Integrations onClose={() => setShowIntegrations(false)} />}

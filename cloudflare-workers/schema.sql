@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS settings (
   notify_daily_summary INTEGER DEFAULT 0,
   notify_weekly_summary INTEGER DEFAULT 0,
   onboarding_completed INTEGER DEFAULT 0,
+  invoice_module_enabled INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -111,3 +112,131 @@ CREATE TABLE IF NOT EXISTS integrations (
 CREATE INDEX idx_integrations_user_id ON integrations(user_id);
 CREATE INDEX idx_integrations_type ON integrations(integration_type);
 CREATE INDEX idx_integrations_active ON integrations(is_active);
+
+-- ============================================
+-- Invoices Table (NEW)
+-- ============================================
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  invoice_number TEXT UNIQUE NOT NULL,
+  client_name TEXT NOT NULL,
+  client_email TEXT,
+  client_address TEXT,
+  client_company TEXT,
+
+  -- Invoice Details
+  invoice_date TEXT NOT NULL,
+  due_date TEXT,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+
+  -- Financial
+  subtotal REAL NOT NULL DEFAULT 0,
+  tax_rate REAL DEFAULT 0,
+  tax_amount REAL DEFAULT 0,
+  discount_amount REAL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  currency TEXT DEFAULT 'USD',
+
+  -- Status & Notes
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled')),
+  notes TEXT,
+  payment_terms TEXT DEFAULT 'Net 30',
+
+  -- Email tracking
+  sent_at TEXT,
+  sent_to TEXT,
+  share_token TEXT UNIQUE,
+
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_invoices_user_id ON invoices(user_id);
+CREATE INDEX idx_invoices_status ON invoices(status);
+CREATE INDEX idx_invoices_date ON invoices(invoice_date);
+CREATE INDEX idx_invoices_share_token ON invoices(share_token);
+CREATE INDEX idx_invoices_number ON invoices(invoice_number);
+
+-- ============================================
+-- Invoice Line Items Table (NEW)
+-- ============================================
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id TEXT PRIMARY KEY,
+  invoice_id TEXT NOT NULL,
+  task_id TEXT,
+
+  description TEXT NOT NULL,
+  quantity REAL DEFAULT 1,
+  rate REAL NOT NULL,
+  amount REAL NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+CREATE INDEX idx_invoice_items_task_id ON invoice_items(task_id);
+
+-- ============================================
+-- Invoice Settings Table (NEW)
+-- ============================================
+CREATE TABLE IF NOT EXISTS invoice_settings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT UNIQUE NOT NULL,
+
+  -- Business info
+  business_name TEXT,
+  business_address TEXT,
+  business_phone TEXT,
+  business_email TEXT,
+  tax_id TEXT,
+  logo_url TEXT,
+  website TEXT,
+
+  -- Default invoice settings
+  default_hourly_rate REAL DEFAULT 50.00,
+  default_currency TEXT DEFAULT 'USD',
+  default_tax_rate REAL DEFAULT 0,
+  default_payment_terms TEXT DEFAULT 'Net 30',
+  invoice_prefix TEXT DEFAULT 'INV',
+  next_invoice_number INTEGER DEFAULT 1,
+
+  -- Bank/Payment info
+  payment_instructions TEXT,
+  bank_details TEXT,
+
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_invoice_settings_user_id ON invoice_settings(user_id);
+
+-- ============================================
+-- Clients Table (NEW - for storing client info)
+-- ============================================
+CREATE TABLE IF NOT EXISTS clients (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+
+  client_name TEXT NOT NULL,
+  client_email TEXT,
+  client_phone TEXT,
+  client_address TEXT,
+  client_company TEXT,
+
+  notes TEXT,
+  is_active INTEGER DEFAULT 1,
+
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_clients_user_id ON clients(user_id);
+CREATE INDEX idx_clients_active ON clients(is_active);
