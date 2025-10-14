@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play, AlertCircle, AlertTriangle, Flame, FileText } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
@@ -119,38 +119,38 @@ export function TaskDetailView() {
     }
   };
 
-  const getPriorityStyles = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
-    const styles = {
+  const getPriorityConfig = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
+    const configs = {
       low: {
         bg: 'bg-gray-100',
         text: 'text-gray-700',
         border: 'border-gray-300',
         label: 'Low',
-        icon: '📋'
+        Icon: FileText
       },
       medium: {
         bg: 'bg-blue-100',
         text: 'text-blue-700',
         border: 'border-blue-300',
         label: 'Medium',
-        icon: '📌'
+        Icon: AlertCircle
       },
       high: {
         bg: 'bg-orange-100',
         text: 'text-orange-700',
         border: 'border-orange-300',
         label: 'High',
-        icon: '⚡'
+        Icon: AlertTriangle
       },
       urgent: {
         bg: 'bg-red-100',
         text: 'text-red-700',
         border: 'border-red-300',
         label: 'Urgent',
-        icon: '🔥'
+        Icon: Flame
       }
     };
-    return styles[priority];
+    return configs[priority];
   };
 
   const fetchTask = async () => {
@@ -316,11 +316,12 @@ export function TaskDetailView() {
             <div className="flex items-center gap-3">
               {/* Priority Badge */}
               {task.priority && (() => {
-                const priorityStyle = getPriorityStyles(task.priority);
+                const config = getPriorityConfig(task.priority);
+                const Icon = config.Icon;
                 return (
-                  <span className={`flex items-center gap-2 text-sm ${priorityStyle.text} ${priorityStyle.bg} px-4 py-2 rounded-xl font-bold shadow-sm border ${priorityStyle.border}`}>
-                    <span>{priorityStyle.icon}</span>
-                    {priorityStyle.label}
+                  <span className={`flex items-center gap-2 text-sm ${config.text} ${config.bg} px-4 py-2 rounded-xl font-bold shadow-sm border ${config.border}`}>
+                    <Icon className="w-4 h-4" />
+                    {config.label}
                   </span>
                 );
               })()}

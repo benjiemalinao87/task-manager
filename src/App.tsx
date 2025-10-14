@@ -11,6 +11,7 @@ import { ClockInOut } from './components/ClockInOut';
 import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
 import { TaskHistory } from './components/TaskHistory';
+import { CalendarView } from './components/CalendarView';
 import { TabNavigation } from './components/TabNavigation';
 import { TaskDetailView } from './components/TaskDetailView';
 
@@ -19,7 +20,7 @@ function TaskManager() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manager' | 'history'>('manager');
+  const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar'>('manager');
 
   const handleTaskCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -84,6 +85,8 @@ function TaskManager() {
             <TaskForm onTaskCreated={handleTaskCreated} />
             <TaskList refreshTrigger={refreshTrigger} />
           </div>
+        ) : activeTab === 'calendar' ? (
+          <CalendarView refreshTrigger={refreshTrigger} />
         ) : (
           <TaskHistory refreshTrigger={refreshTrigger} />
         )}

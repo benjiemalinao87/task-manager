@@ -1,6 +1,13 @@
 import { useState } from 'react';
-import { Plus, Loader2, ChevronDown } from 'lucide-react';
+import { Plus, Loader2, ChevronDown, AlertCircle, AlertTriangle, Flame, FileText } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TaskFormProps {
   onTaskCreated: () => void;
@@ -122,18 +129,40 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             <label htmlFor="priority" className="block text-sm font-semibold text-gray-700 mb-2">
               Priority *
             </label>
-            <select
-              id="priority"
-              required
+            <Select
               value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+              onValueChange={(value) => setFormData({ ...formData, priority: value as 'low' | 'medium' | 'high' | 'urgent' })}
             >
-              <option value="low">📋 Low</option>
-              <option value="medium">📌 Medium</option>
-              <option value="high">⚡ High</option>
-              <option value="urgent">🔥 Urgent</option>
-            </select>
+              <SelectTrigger className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white">
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-600" />
+                    <span>Low</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="medium" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-blue-600" />
+                    <span>Medium</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="high" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-orange-600" />
+                    <span>High</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="urgent" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-red-600" />
+                    <span>Urgent</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
