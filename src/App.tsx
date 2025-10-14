@@ -70,7 +70,6 @@ function TaskManager() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Workoto</h1>
-              <p className="text-xs text-gray-500">Task Management System</p>
             </div>
           </div>
           
