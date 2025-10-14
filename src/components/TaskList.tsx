@@ -37,6 +37,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [noteText, setNoteText] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [previousTaskCount, setPreviousTaskCount] = useState(0);
 
   // Pause/resume state management (keyed by task ID)
   const [pauseStates, setPauseStates] = useState<Record<string, {
@@ -68,6 +69,18 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
       setPauseStates(newPauseStates);
     }
   }, [tasks]);
+
+  // Separate effect to handle auto-expanding new tasks
+  useEffect(() => {
+    if (tasks.length > 0 && tasks.length > previousTaskCount) {
+      // A new task was added, expand the first task (most recent)
+      setExpandedTaskId(tasks[0].id);
+      setPreviousTaskCount(tasks.length);
+    } else if (tasks.length !== previousTaskCount) {
+      // Task count changed (task deleted or completed)
+      setPreviousTaskCount(tasks.length);
+    }
+  }, [tasks.length, previousTaskCount, tasks]);
 
   // Save pause states to localStorage whenever they change
   useEffect(() => {
