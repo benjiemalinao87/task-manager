@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   task_link TEXT,
   ai_summary TEXT,
   status TEXT DEFAULT 'in_progress' CHECK(status IN ('in_progress', 'completed', 'cancelled')),
+  priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'urgent')),
   asana_task_id TEXT,
   notes TEXT,
   started_at TEXT DEFAULT (datetime('now')),
@@ -50,6 +51,7 @@ CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_user_status ON tasks(user_id, status);
+CREATE INDEX idx_tasks_priority ON tasks(priority);
 
 -- ============================================
 -- Settings Table (UPDATED - per user)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
@@ -14,6 +14,7 @@ interface Task {
   task_link?: string;
   ai_summary?: string;
   status: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   asana_task_id?: string;
   notes?: string;
   started_at: string;
@@ -33,6 +34,9 @@ export function TaskDetailView() {
   const [noteText, setNoteText] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [pausedTime, setPausedTime] = useState(0); // Total paused time in milliseconds
+  const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (taskId) {
@@ -42,18 +46,111 @@ export function TaskDetailView() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      if (!isPaused) {
+        setCurrentTime(new Date());
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPaused]);
+
+  // Load pause state from localStorage on mount
+  useEffect(() => {
+    if (taskId) {
+      const savedState = localStorage.getItem(`task_pause_${taskId}`);
+      if (savedState) {
+        const { isPaused: savedIsPaused, pausedTime: savedPausedTime, pauseStartTime: savedPauseStartTime } = JSON.parse(savedState);
+        setIsPaused(savedIsPaused);
+        setPausedTime(savedPausedTime);
+        if (savedIsPaused && savedPauseStartTime) {
+          setPauseStartTime(savedPauseStartTime);
+        }
+      }
+    }
+  }, [taskId]);
+
+  // Save pause state to localStorage whenever it changes
+  useEffect(() => {
+    if (taskId) {
+      const state = {
+        isPaused,
+        pausedTime,
+        pauseStartTime,
+      };
+      localStorage.setItem(`task_pause_${taskId}`, JSON.stringify(state));
+    }
+  }, [taskId, isPaused, pausedTime, pauseStartTime]);
 
   const calculateElapsedTime = (startedAt: string) => {
     const start = new Date(startedAt);
-    const diff = currentTime.getTime() - start.getTime();
+    let diff = currentTime.getTime() - start.getTime();
+
+    // Subtract the total paused time
+    let totalPausedTime = pausedTime;
+
+    // If currently paused, add the time since pause started
+    if (isPaused && pauseStartTime) {
+      totalPausedTime += currentTime.getTime() - pauseStartTime;
+    }
+
+    diff -= totalPausedTime;
+
+    // Ensure diff is not negative
+    if (diff < 0) diff = 0;
+
     const hours = Math.floor(diff / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const handleTogglePause = () => {
+    if (isPaused) {
+      // Resume: add the paused duration to total paused time
+      if (pauseStartTime) {
+        const pauseDuration = Date.now() - pauseStartTime;
+        setPausedTime(prev => prev + pauseDuration);
+        setPauseStartTime(null);
+      }
+      setIsPaused(false);
+    } else {
+      // Pause: record the pause start time
+      setPauseStartTime(Date.now());
+      setIsPaused(true);
+    }
+  };
+
+  const getPriorityStyles = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
+    const styles = {
+      low: {
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-300',
+        label: 'Low',
+        icon: '📋'
+      },
+      medium: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-700',
+        border: 'border-blue-300',
+        label: 'Medium',
+        icon: '📌'
+      },
+      high: {
+        bg: 'bg-orange-100',
+        text: 'text-orange-700',
+        border: 'border-orange-300',
+        label: 'High',
+        icon: '⚡'
+      },
+      urgent: {
+        bg: 'bg-red-100',
+        text: 'text-red-700',
+        border: 'border-red-300',
+        label: 'Urgent',
+        icon: '🔥'
+      }
+    };
+    return styles[priority];
   };
 
   const fetchTask = async () => {
@@ -95,6 +192,10 @@ export function TaskDetailView() {
 
     try {
       await apiClient.deleteTask(task.id);
+
+      // Clean up pause state from localStorage
+      localStorage.removeItem(`task_pause_${task.id}`);
+
       alert('Task deleted successfully!');
       navigate('/');
     } catch (error) {
@@ -113,7 +214,23 @@ export function TaskDetailView() {
     try {
       const completedAt = new Date();
       const startedAt = new Date(task.started_at);
-      const durationMinutes = Math.round((completedAt.getTime() - startedAt.getTime()) / 60000);
+
+      // Calculate actual duration excluding paused time
+      let totalDuration = completedAt.getTime() - startedAt.getTime();
+      let totalPausedTime = pausedTime;
+
+      // If currently paused when completing, add the current pause duration
+      if (isPaused && pauseStartTime) {
+        totalPausedTime += completedAt.getTime() - pauseStartTime;
+      }
+
+      // Subtract paused time from total duration
+      totalDuration -= totalPausedTime;
+
+      // Ensure duration is not negative
+      if (totalDuration < 0) totalDuration = 0;
+
+      const durationMinutes = Math.round(totalDuration / 60000);
       const hours = Math.floor(durationMinutes / 60);
       const minutes = durationMinutes % 60;
       const actualTime = `${hours}h ${minutes}m`;
@@ -123,6 +240,9 @@ export function TaskDetailView() {
         notes: notes || undefined,
         actualTime,
       });
+
+      // Clean up pause state from localStorage
+      localStorage.removeItem(`task_pause_${task.id}`);
 
       setShowNoteInput(false);
       setNoteText('');
@@ -193,18 +313,56 @@ export function TaskDetailView() {
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <h2 className="text-3xl font-bold text-gray-800 flex-1">{task.task_name}</h2>
-            <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200">
-              <Clock className="w-4 h-4 animate-pulse" />
-              In Progress
-            </span>
+            <div className="flex items-center gap-3">
+              {/* Priority Badge */}
+              {task.priority && (() => {
+                const priorityStyle = getPriorityStyles(task.priority);
+                return (
+                  <span className={`flex items-center gap-2 text-sm ${priorityStyle.text} ${priorityStyle.bg} px-4 py-2 rounded-xl font-bold shadow-sm border ${priorityStyle.border}`}>
+                    <span>{priorityStyle.icon}</span>
+                    {priorityStyle.label}
+                  </span>
+                );
+              })()}
+              {/* Status Badge */}
+              <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200">
+                <Clock className="w-4 h-4 animate-pulse" />
+                In Progress
+              </span>
+            </div>
           </div>
 
           {/* Timer Display */}
           <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-12 mb-8 shadow-xl border border-blue-500">
             <div className="text-center">
-              <p className="text-sm font-bold mb-4 opacity-90 uppercase tracking-wide">Time Running</p>
+              <p className="text-sm font-bold mb-4 opacity-90 uppercase tracking-wide">
+                {isPaused ? 'Timer Paused' : 'Time Running'}
+              </p>
               <p className="text-7xl font-bold font-mono tracking-wider mb-3">{calculateElapsedTime(task.started_at)}</p>
-              <p className="text-sm opacity-75 font-medium">Hours : Minutes : Seconds</p>
+              <p className="text-sm opacity-75 font-medium mb-6">Hours : Minutes : Seconds</p>
+
+              {/* Pause/Resume Button */}
+              <button
+                type="button"
+                onClick={handleTogglePause}
+                className={`${
+                  isPaused
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : 'bg-yellow-500 hover:bg-yellow-600'
+                } text-white font-bold py-3 px-8 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105`}
+              >
+                {isPaused ? (
+                  <>
+                    <Play className="w-5 h-5" />
+                    Resume Timer
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-5 h-5" />
+                    Pause Timer
+                  </>
+                )}
+              </button>
             </div>
           </div>
 

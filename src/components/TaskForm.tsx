@@ -14,6 +14,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
     description: '',
     estimatedTime: '',
     taskLink: '',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,6 +27,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         description: formData.description,
         estimatedTime: formData.estimatedTime,
         taskLink: formData.taskLink || undefined,
+        priority: formData.priority,
       });
 
       setFormData({
@@ -33,6 +35,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         description: '',
         estimatedTime: '',
         taskLink: '',
+        priority: 'medium',
       });
 
       setIsExpanded(false);
@@ -116,18 +119,36 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
           </div>
 
           <div>
-            <label htmlFor="taskLink" className="block text-sm font-semibold text-gray-700 mb-2">
-              Task Link <span className="text-gray-400 font-normal">(Optional)</span>
+            <label htmlFor="priority" className="block text-sm font-semibold text-gray-700 mb-2">
+              Priority *
             </label>
-            <input
-              type="url"
-              id="taskLink"
-              value={formData.taskLink}
-              onChange={(e) => setFormData({ ...formData, taskLink: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-              placeholder="https://example.com/task"
-            />
+            <select
+              id="priority"
+              required
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+            >
+              <option value="low">📋 Low</option>
+              <option value="medium">📌 Medium</option>
+              <option value="high">⚡ High</option>
+              <option value="urgent">🔥 Urgent</option>
+            </select>
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="taskLink" className="block text-sm font-semibold text-gray-700 mb-2">
+            Task Link <span className="text-gray-400 font-normal">(Optional)</span>
+          </label>
+          <input
+            type="url"
+            id="taskLink"
+            value={formData.taskLink}
+            onChange={(e) => setFormData({ ...formData, taskLink: e.target.value })}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+            placeholder="https://example.com/task"
+          />
         </div>
 
         <div className="pt-2">

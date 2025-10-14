@@ -144,7 +144,7 @@ tasks.post('/', async (c) => {
   if (auth instanceof Response) return auth;
 
   try {
-    const { taskName, description, estimatedTime, taskLink } = await c.req.json<CreateTaskRequest>();
+    const { taskName, description, estimatedTime, taskLink, priority } = await c.req.json<CreateTaskRequest>();
 
     if (!taskName || !description || !estimatedTime) {
       return c.json({ error: 'Missing required fields' }, 400);
@@ -152,6 +152,7 @@ tasks.post('/', async (c) => {
 
     const taskId = generateId();
     const now = getCurrentTimestamp();
+    const taskPriority = priority || 'medium';
 
     // Try to create Asana task first
     const asanaTaskId = await createAsanaTask(c.env, auth.userId, taskName, description);
@@ -159,12 +160,12 @@ tasks.post('/', async (c) => {
     await c.env.DB.prepare(`
       INSERT INTO tasks (
         id, user_id, task_name, description, estimated_time,
-        task_link, asana_task_id, started_at, created_at, updated_at
+        task_link, priority, asana_task_id, started_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       taskId, auth.userId, taskName, description, estimatedTime,
-      taskLink || null, asanaTaskId || null, now, now, now
+      taskLink || null, taskPriority, asanaTaskId || null, now, now, now
     ).run();
 
     const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')

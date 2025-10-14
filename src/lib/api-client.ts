@@ -110,6 +110,7 @@ class ApiClient {
     description: string;
     estimatedTime: string;
     taskLink?: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
   }) {
     return this.post<any>('/api/tasks', task);
   }

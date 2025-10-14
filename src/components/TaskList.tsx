@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink, Pause, Play } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
@@ -14,6 +14,7 @@ interface Task {
   task_link?: string;
   ai_summary?: string;
   status: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   asana_task_id?: string;
   notes?: string;
   started_at: string;
@@ -37,9 +38,43 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
+  // Pause/resume state management (keyed by task ID)
+  const [pauseStates, setPauseStates] = useState<Record<string, {
+    isPaused: boolean;
+    pausedTime: number;
+    pauseStartTime: number | null;
+  }>>({});
+
   useEffect(() => {
     fetchTasks();
   }, [refreshTrigger]);
+
+  // Load pause states from localStorage on mount and when tasks change
+  useEffect(() => {
+    if (tasks.length > 0) {
+      const newPauseStates: typeof pauseStates = {};
+      tasks.forEach(task => {
+        const savedState = localStorage.getItem(`task_pause_${task.id}`);
+        if (savedState) {
+          newPauseStates[task.id] = JSON.parse(savedState);
+        } else {
+          newPauseStates[task.id] = {
+            isPaused: false,
+            pausedTime: 0,
+            pauseStartTime: null,
+          };
+        }
+      });
+      setPauseStates(newPauseStates);
+    }
+  }, [tasks]);
+
+  // Save pause states to localStorage whenever they change
+  useEffect(() => {
+    Object.entries(pauseStates).forEach(([taskId, state]) => {
+      localStorage.setItem(`task_pause_${taskId}`, JSON.stringify(state));
+    });
+  }, [pauseStates]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -48,13 +83,95 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const calculateElapsedTime = (startedAt: string) => {
+  const calculateElapsedTime = (startedAt: string, taskId: string) => {
     const start = new Date(startedAt);
-    const diff = currentTime.getTime() - start.getTime();
+    let diff = currentTime.getTime() - start.getTime();
+
+    const pauseState = pauseStates[taskId];
+    if (pauseState) {
+      // Subtract the total paused time
+      let totalPausedTime = pauseState.pausedTime;
+
+      // If currently paused, add the time since pause started
+      if (pauseState.isPaused && pauseState.pauseStartTime) {
+        totalPausedTime += currentTime.getTime() - pauseState.pauseStartTime;
+      }
+
+      diff -= totalPausedTime;
+    }
+
+    // Ensure diff is not negative
+    if (diff < 0) diff = 0;
+
     const hours = Math.floor(diff / 3600000);
     const minutes = Math.floor((diff % 3600000) / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  const handleTogglePause = (taskId: string) => {
+    setPauseStates(prev => {
+      const currentState = prev[taskId] || { isPaused: false, pausedTime: 0, pauseStartTime: null };
+
+      if (currentState.isPaused) {
+        // Resume: add the paused duration to total paused time
+        const pauseDuration = currentState.pauseStartTime
+          ? Date.now() - currentState.pauseStartTime
+          : 0;
+        return {
+          ...prev,
+          [taskId]: {
+            isPaused: false,
+            pausedTime: currentState.pausedTime + pauseDuration,
+            pauseStartTime: null,
+          }
+        };
+      } else {
+        // Pause: record the pause start time
+        return {
+          ...prev,
+          [taskId]: {
+            ...currentState,
+            isPaused: true,
+            pauseStartTime: Date.now(),
+          }
+        };
+      }
+    });
+  };
+
+  const getPriorityStyles = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
+    const styles = {
+      low: {
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        border: 'border-gray-300',
+        label: 'Low',
+        icon: '📋'
+      },
+      medium: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-700',
+        border: 'border-blue-300',
+        label: 'Medium',
+        icon: '📌'
+      },
+      high: {
+        bg: 'bg-orange-100',
+        text: 'text-orange-700',
+        border: 'border-orange-300',
+        label: 'High',
+        icon: '⚡'
+      },
+      urgent: {
+        bg: 'bg-red-100',
+        text: 'text-red-700',
+        border: 'border-red-300',
+        label: 'Urgent',
+        icon: '🔥'
+      }
+    };
+    return styles[priority];
   };
 
   const fetchTasks = async () => {
@@ -92,6 +209,10 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
 
     try {
       await apiClient.deleteTask(taskId);
+
+      // Clean up pause state from localStorage
+      localStorage.removeItem(`task_pause_${taskId}`);
+
       await fetchTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -105,10 +226,29 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     setCompletingTaskId(task.id);
 
     try {
-      // Calculate actual time
       const completedAt = new Date();
       const startedAt = new Date(task.started_at);
-      const durationMinutes = Math.round((completedAt.getTime() - startedAt.getTime()) / 60000);
+
+      // Calculate actual duration excluding paused time
+      let totalDuration = completedAt.getTime() - startedAt.getTime();
+      const pauseState = pauseStates[task.id];
+
+      if (pauseState) {
+        let totalPausedTime = pauseState.pausedTime;
+
+        // If currently paused when completing, add the current pause duration
+        if (pauseState.isPaused && pauseState.pauseStartTime) {
+          totalPausedTime += completedAt.getTime() - pauseState.pauseStartTime;
+        }
+
+        // Subtract paused time from total duration
+        totalDuration -= totalPausedTime;
+      }
+
+      // Ensure duration is not negative
+      if (totalDuration < 0) totalDuration = 0;
+
+      const durationMinutes = Math.round(totalDuration / 60000);
       const hours = Math.floor(durationMinutes / 60);
       const minutes = durationMinutes % 60;
       const actualTime = `${hours}h ${minutes}m`;
@@ -118,6 +258,9 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
         notes: notes || undefined,
         actualTime,
       });
+
+      // Clean up pause state from localStorage
+      localStorage.removeItem(`task_pause_${task.id}`);
 
       setShowNoteInput(null);
       setNoteText('');
@@ -179,17 +322,29 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                 {!isExpanded && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Clock className="w-4 h-4" />
-                    <span className="font-mono font-bold">{calculateElapsedTime(task.started_at)}</span>
+                    <span className="font-mono font-bold">{calculateElapsedTime(task.started_at, task.id)}</span>
                   </div>
                 )}
               </div>
               
               <div className="flex items-center gap-2">
+                {/* Priority Badge */}
+                {task.priority && (() => {
+                  const priorityStyle = getPriorityStyles(task.priority);
+                  return (
+                    <span className={`flex items-center gap-2 text-sm ${priorityStyle.text} ${priorityStyle.bg} px-3 py-2 rounded-xl font-bold shadow-sm border ${priorityStyle.border} whitespace-nowrap`}>
+                      <span>{priorityStyle.icon}</span>
+                      {priorityStyle.label}
+                    </span>
+                  );
+                })()}
+                {/* Status Badge */}
                 <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200 whitespace-nowrap">
                   <Clock className="w-4 h-4 animate-pulse" />
                   In Progress
                 </span>
                 <button
+                  type="button"
                   onClick={() => navigate(`/task/${task.id}`)}
                   className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all shadow-sm hover:shadow-md"
                   title="Open in Focus View"
@@ -197,6 +352,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                   <ExternalLink className="w-5 h-5" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => toggleExpand(task.id)}
                   className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all shadow-sm hover:shadow-md"
                   title={isExpanded ? 'Collapse' : 'Expand'}
@@ -216,9 +372,34 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                 {/* Timer Display */}
                 <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
                   <div className="text-center">
-                    <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">Time Running</p>
-                    <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at)}</p>
-                    <p className="text-xs opacity-75 font-medium">Hours : Minutes : Seconds</p>
+                    <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">
+                      {pauseStates[task.id]?.isPaused ? 'Timer Paused' : 'Time Running'}
+                    </p>
+                    <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at, task.id)}</p>
+                    <p className="text-xs opacity-75 font-medium mb-5">Hours : Minutes : Seconds</p>
+
+                    {/* Pause/Resume Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePause(task.id)}
+                      className={`${
+                        pauseStates[task.id]?.isPaused
+                          ? 'bg-green-500 hover:bg-green-600'
+                          : 'bg-yellow-500 hover:bg-yellow-600'
+                      } text-white font-bold py-2 px-6 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105`}
+                    >
+                      {pauseStates[task.id]?.isPaused ? (
+                        <>
+                          <Play className="w-4 h-4" />
+                          Resume Timer
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="w-4 h-4" />
+                          Pause Timer
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 

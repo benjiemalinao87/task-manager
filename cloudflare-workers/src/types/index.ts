@@ -37,6 +37,7 @@ export interface Task {
   task_link: string | null;
   ai_summary: string | null;
   status: 'in_progress' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   asana_task_id: string | null;
   notes: string | null;
   started_at: string;
@@ -109,6 +110,7 @@ export interface CreateTaskRequest {
   description: string;
   estimatedTime: string;
   taskLink?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface CompleteTaskRequest {
