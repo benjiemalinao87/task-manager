@@ -287,60 +287,60 @@ export function TaskDetailView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-4 max-w-4xl">
         {/* Header */}
-        <header className="flex items-center justify-between mb-10">
+        <header className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 bg-white px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-all"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 bg-white px-3 py-2 rounded-lg shadow-sm hover:shadow-md transition-all text-sm"
           >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Tasks
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </button>
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-md">
-              <CheckSquare className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded-lg shadow-md">
+              <CheckSquare className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Workoto</h1>
-              <p className="text-xs text-gray-500">Task Focus View</p>
+              <h1 className="text-lg font-bold text-gray-800">Workoto</h1>
+              <p className="text-[10px] text-gray-500">Focus View</p>
             </div>
           </div>
         </header>
 
         {/* Task Card */}
-        <div className="bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-xl p-8 border-2 border-orange-300">
+        <div className="bg-gradient-to-br from-white to-orange-50 rounded-xl shadow-xl p-4 border-2 border-orange-300">
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
-            <h2 className="text-3xl font-bold text-gray-800 flex-1">{task.task_name}</h2>
-            <div className="flex items-center gap-3">
+          <div className="flex items-start justify-between mb-3 gap-3">
+            <h2 className="text-2xl font-bold text-gray-800 flex-1">{task.task_name}</h2>
+            <div className="flex items-center gap-2 flex-shrink-0">
               {/* Priority Badge */}
               {task.priority && (() => {
                 const config = getPriorityConfig(task.priority);
                 const Icon = config.Icon;
                 return (
-                  <span className={`flex items-center gap-2 text-sm ${config.text} ${config.bg} px-4 py-2 rounded-xl font-bold shadow-sm border ${config.border}`}>
-                    <Icon className="w-4 h-4" />
+                  <span className={`flex items-center gap-1 text-xs ${config.text} ${config.bg} px-2 py-1 rounded-lg font-bold shadow-sm border ${config.border}`}>
+                    <Icon className="w-3 h-3" />
                     {config.label}
                   </span>
                 );
               })()}
               {/* Status Badge */}
-              <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200">
-                <Clock className="w-4 h-4 animate-pulse" />
+              <span className="flex items-center gap-1 text-xs text-orange-700 bg-orange-100 px-2 py-1 rounded-lg font-bold shadow-sm border border-orange-200">
+                <Clock className="w-3 h-3 animate-pulse" />
                 In Progress
               </span>
             </div>
           </div>
 
           {/* Timer Display */}
-          <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-12 mb-8 shadow-xl border border-blue-500">
+          <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-xl p-6 mb-3 shadow-xl border border-blue-500">
             <div className="text-center">
-              <p className="text-sm font-bold mb-4 opacity-90 uppercase tracking-wide">
-                {isPaused ? 'Timer Paused' : 'Time Running'}
+              <p className="text-xs font-bold mb-2 opacity-90 uppercase tracking-wide">
+                {isPaused ? '⏸️ Timer Paused' : '⏱️ Time Running'}
               </p>
-              <p className="text-7xl font-bold font-mono tracking-wider mb-3">{calculateElapsedTime(task.started_at)}</p>
-              <p className="text-sm opacity-75 font-medium mb-6">Hours : Minutes : Seconds</p>
+              <p className="text-5xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at)}</p>
+              <p className="text-[10px] opacity-75 font-medium mb-3">Hours : Minutes : Seconds</p>
 
               {/* Pause/Resume Button */}
               <button
@@ -350,16 +350,16 @@ export function TaskDetailView() {
                   isPaused
                     ? 'bg-green-500 hover:bg-green-600'
                     : 'bg-yellow-500 hover:bg-yellow-600'
-                } text-white font-bold py-3 px-8 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105`}
+                } text-white font-bold py-2 px-6 rounded-lg transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105 text-sm`}
               >
                 {isPaused ? (
                   <>
-                    <Play className="w-5 h-5" />
+                    <Play className="w-4 h-4" />
                     Resume Timer
                   </>
                 ) : (
                   <>
-                    <Pause className="w-5 h-5" />
+                    <Pause className="w-4 h-4" />
                     Pause Timer
                   </>
                 )}
@@ -368,67 +368,53 @@ export function TaskDetailView() {
           </div>
 
           {/* Description */}
-          <div className="mb-8">
-            <h3 className="text-lg font-bold text-gray-800 mb-3">Description</h3>
-            <p className="text-gray-700 leading-relaxed text-lg">{task.description}</p>
+          <div className="mb-3 bg-white rounded-lg p-3 border border-gray-200">
+            <p className="text-sm text-gray-700 leading-relaxed">{task.description}</p>
           </div>
 
           {/* AI Summary */}
           {task.ai_summary && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-8 shadow-sm">
-              <p className="text-sm font-bold text-blue-900 mb-3 uppercase tracking-wide">✨ AI Summary</p>
-              <p className="text-base text-blue-800 leading-relaxed">{task.ai_summary}</p>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3 mb-3 shadow-sm">
+              <p className="text-[10px] font-bold text-blue-900 mb-1 uppercase tracking-wide">✨ AI SUMMARY</p>
+              <p className="text-xs text-blue-800 leading-relaxed">{task.ai_summary}</p>
             </div>
           )}
 
           {/* Task Metadata */}
-          <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Task Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="flex items-center gap-3 text-gray-700">
-                <div className="bg-blue-100 p-3 rounded-lg">
-                  <Clock className="w-5 h-5 text-blue-600" />
+          <div className="bg-gray-50 rounded-lg p-3 mb-3 border border-gray-200">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-2 text-gray-700">
+                <div className="bg-blue-100 p-1.5 rounded-lg">
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
                 </div>
                 <div>
-                  <span className="block text-xs text-gray-500 font-medium">Estimated Time</span>
-                  <span className="font-semibold text-lg">{task.estimated_time}</span>
+                  <span className="block text-[10px] text-gray-500 font-medium">Estimated Time</span>
+                  <span className="font-bold text-sm">{task.estimated_time}</span>
                 </div>
               </div>
 
-              {task.actual_time && (
-                <div className="flex items-center gap-3 text-gray-700">
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <Clock className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <span className="block text-xs text-gray-500 font-medium">Actual Time</span>
-                    <span className="font-semibold text-lg">{task.actual_time}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 text-gray-700">
-                <div className="bg-purple-100 p-3 rounded-lg">
-                  <Calendar className="w-5 h-5 text-purple-600" />
+              <div className="flex items-center gap-2 text-gray-700">
+                <div className="bg-purple-100 p-1.5 rounded-lg">
+                  <Calendar className="w-3.5 h-3.5 text-purple-600" />
                 </div>
                 <div>
-                  <span className="block text-xs text-gray-500 font-medium">Created</span>
-                  <span className="font-semibold">{formatDateTimePST(task.created_at)}</span>
+                  <span className="block text-[10px] text-gray-500 font-medium">Created</span>
+                  <span className="font-bold text-[10px]">{formatDateTimePST(task.created_at)}</span>
                 </div>
               </div>
 
               {task.task_link && (
-                <div className="flex items-center gap-3 text-gray-700 md:col-span-2">
-                  <div className="bg-indigo-100 p-3 rounded-lg">
-                    <LinkIcon className="w-5 h-5 text-indigo-600" />
+                <div className="col-span-2 flex items-center gap-2 text-gray-700 pt-2 border-t border-gray-200">
+                  <div className="bg-indigo-100 p-1.5 rounded-lg">
+                    <LinkIcon className="w-3.5 h-3.5 text-indigo-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="block text-xs text-gray-500 font-medium mb-1">Task Link</span>
+                    <span className="block text-[10px] text-gray-500 font-medium">Task Link</span>
                     <a
                       href={task.task_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium"
+                      className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium text-xs"
                     >
                       {task.task_link}
                     </a>
@@ -439,44 +425,44 @@ export function TaskDetailView() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex gap-2">
             {showNoteInput ? (
-              <div className="flex-1 space-y-4">
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-5">
-                  <label className="block text-sm font-bold text-gray-700 mb-3">
+              <div className="flex-1 space-y-2">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <label className="block text-xs font-bold text-gray-700 mb-2">
                     📝 Add Completion Note (Optional)
                   </label>
                   <textarea
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
-                    placeholder="Any additional notes about this task completion..."
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none transition-all"
-                    rows={4}
+                    placeholder="Any additional notes..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none transition-all text-sm"
+                    rows={3}
                     autoFocus
                   />
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     onClick={() => handleCompleteTask(noteText)}
                     disabled={completingTaskId === task.id}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
+                    className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm"
                   >
                     {completingTaskId === task.id ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Completing...
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Complete Task
+                        <CheckCircle2 className="w-4 h-4" />
+                        Complete
                       </>
                     )}
                   </button>
                   <button
                     onClick={handleCancelNote}
                     disabled={completingTaskId === task.id}
-                    className="px-6 py-4 border-2 border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-bold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
                     Cancel
                   </button>
@@ -486,22 +472,22 @@ export function TaskDetailView() {
               <button
                 onClick={handleShowNoteInput}
                 disabled={completingTaskId === task.id}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-[1.01]"
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm"
               >
-                <CheckCircle2 className="w-6 h-6" />
+                <CheckCircle2 className="w-5 h-5" />
                 Complete Task
               </button>
             )}
             <button
               onClick={handleDeleteTask}
               disabled={deletingTaskId === task.id || completingTaskId === task.id}
-              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
               title="Delete task"
             >
               {deletingTaskId === task.id ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Trash2 className="w-6 h-6" />
+                <Trash2 className="w-5 h-5" />
               )}
             </button>
           </div>
