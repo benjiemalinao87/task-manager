@@ -51,7 +51,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
             <button onClick={onGetStarted} className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
-              Start Free Trial <ArrowRight className="w-5 h-5" />
+              Signup for Free <ArrowRight className="w-5 h-5" />
             </button>
             <button onClick={() => setShowVideoModal(true)} className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
               Watch Demo
