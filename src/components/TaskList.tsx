@@ -187,6 +187,10 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     return configs[priority];
   };
 
+  const getAsanaTaskUrl = (asanaTaskId: string) => {
+    return `https://app.asana.com/0/0/${asanaTaskId}`;
+  };
+
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
@@ -479,6 +483,26 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                             className="text-blue-600 hover:text-blue-800 hover:underline truncate block font-medium"
                           >
                             {task.task_link}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {task.asana_task_id && (
+                      <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                          <ExternalLink className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-xs text-gray-500 font-medium mb-1">Asana Task</span>
+                          <a
+                            href={getAsanaTaskUrl(task.asana_task_id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-purple-600 hover:text-purple-800 hover:underline font-medium flex items-center gap-1"
+                          >
+                            <span>View in Asana</span>
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
                       </div>
