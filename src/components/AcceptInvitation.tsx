@@ -54,7 +54,15 @@ export function AcceptInvitation() {
       }, 2000);
     } catch (err: any) {
       console.error('Error accepting invitation:', err);
-      setError(err.message || 'Failed to accept invitation. Please try again.');
+      
+      let errorMessage = err.message || 'Failed to accept invitation. Please try again.';
+      
+      // Provide helpful error message for common issues
+      if (err.message?.includes('not found or already used')) {
+        errorMessage = 'This invitation is either invalid, expired, or was sent to a different email address. Please check that you\'re logged in with the correct email, or contact the person who invited you.';
+      }
+      
+      setError(errorMessage);
       setIsLoading(false);
     }
   };

@@ -1,5 +1,140 @@
 # Lessons Learned
 
+## Email Invitation - Wrong Email Logged In (October 15, 2025)
+
+### Issue: "Invitation not found or already used" When Accepting Valid Invitation
+**Problem**: When clicking invitation link, getting 404 error "Invitation not found or already used" even though the invitation is valid and pending in the database.
+
+**Root Cause**: 
+- Backend accept endpoint checks if **logged-in user's email matches invitation email**
+- Invitation was sent to: `itnetworking.learning@gmail.com`
+- User was logged in as: `benjiemalinao87@gmail.com` (different email!)
+- Backend query: `WHERE token = ? AND email = ? AND status = 'pending'` ← email must match!
+
+**How To Detect**:
+```sql
+-- Check invitation
+SELECT email, status FROM workspace_invitations WHERE token = '403c2796...';
+-- Result: email = 'itnetworking.learning@gmail.com', status = 'pending'
+
+-- But user logged in as different email!
+-- Backend rejects because emails don't match
+```
+
+**Solution**:
+User must either:
+1. **Logout** and sign up with the invited email (`itnetworking.learning@gmail.com`)
+2. OR have the admin **resend invitation to the correct email**
+
+**Improved error message**:
+```typescript
+if (err.message?.includes('not found or already used')) {
+  errorMessage = 'This invitation is either invalid, expired, or was sent to a different email address. Please check that you\'re logged in with the correct email, or contact the person who invited you.';
+}
+```
+
+**Result**:
+- ✅ Clear error message explains the email mismatch issue
+- ✅ Users know they need to use the correct email
+- ✅ Prevents confusion about "invitation not found"
+
+**Key Learning**: 
+- **Email matching is enforced for security** - Can't accept invitations sent to other emails
+- **Provide clear error messages** - Don't just say "not found", explain possible causes
+- **Consider showing invited email** - Display "Invitation for: email@example.com" on the page
+- **Backend validation is necessary** - Prevents unauthorized workspace access
+
+**Don't Do This**:
+❌ Allow any logged-in user to accept any invitation (security risk!)
+❌ Show generic "not found" error without explanation
+❌ Assume user knows they need to match the invited email
+❌ Skip email validation on backend
+
+**Do This Instead**:
+✅ Enforce email matching for invitation acceptance
+✅ Provide helpful error messages mentioning email mismatch
+✅ Show invited email on acceptance page for clarity
+✅ Validate both token AND email on backend
+✅ Suggest "logout and signup with correct email" in error
+
+## Email Invitation Links - Missing Accept Route (October 15, 2025)
+
+### Issue: Invitation Link Redirects to Main App Instead of Acceptance Page
+**Problem**: When clicking the email invitation link `http://localhost:5173/accept-invitation?token=...`, it immediately redirects to the main app at `http://localhost:5173/` instead of showing an invitation acceptance page.
+
+**Root Cause**: 
+- No `/accept-invitation` route existed in the React app
+- Catch-all route `<Route path="*" element={<Navigate to="/" replace />} />` was redirecting unknown routes to home
+- App had no UI for new users to create account and accept invitation via email link
+
+**How To Detect**:
+```typescript
+// App.tsx routes - /accept-invitation was missing!
+<Routes>
+  <Route path="/" element={<TaskManager />} />
+  <Route path="/task/:taskId" element={<TaskDetailView />} />
+  <Route path="/team-dashboard" element={<TeamDashboard />} />
+  <Route path="/time-reports" element={<TimeReports />} />
+  {/* Missing: /accept-invitation route */}
+  <Route path="*" element={<Navigate to="/" replace />} /> {/* This catches /accept-invitation! */}
+</Routes>
+```
+
+**Solution**:
+Created `AcceptInvitation.tsx` component and added route:
+
+**Component Features**:
+1. **Extracts token from URL** using `useSearchParams()`
+2. **Auto-accepts if logged in** - existing users don't need to re-authenticate
+3. **Shows signup form for new users** - beautiful onboarding experience
+4. **Switch between login/signup** - for users who already have accounts
+5. **Success/error states** - clear feedback with loading, success, and error messages
+6. **Auto-redirect after acceptance** - takes user to main app after 2 seconds
+
+**Added Route**:
+```typescript
+<Route path="/accept-invitation" element={<AcceptInvitation />} />
+```
+
+**User Flows**:
+1. **Existing User Flow**:
+   - Click email link → Already logged in → Auto-accepts → Success message → Redirects to app ✅
+
+2. **New User Flow**:
+   - Click email link → Not logged in → Signup form shown → Create account → Auto-accepts → Success → Redirects ✅
+
+3. **Existing User (Not Logged In) Flow**:
+   - Click email link → Not logged in → Signup form → "Already have account?" link → Login form → Auto-accepts ✅
+
+**Result**:
+- ✅ Email invitation links now work for both new and existing users
+- ✅ Beautiful branded UI for invitation acceptance
+- ✅ Smooth authentication flow integrated with invitation
+- ✅ Clear success/error messaging
+- ✅ Auto-redirect after successful acceptance
+
+**Key Learning**: 
+- **Always create routes for email links** - Don't assume users are logged in
+- **Handle both authenticated and unauthenticated states** - Email recipients may or may not have accounts
+- **Use URL params for tokens** - `useSearchParams()` for accessing query parameters
+- **Catch-all routes come last** - Place `path="*"` as the last route to avoid catching valid routes
+- **Consider the full user journey** - Email link → Landing page → Auth → Acceptance → Redirect
+
+**Don't Do This**:
+❌ Send email links without implementing the frontend route
+❌ Assume all invitation recipients are already logged in
+❌ Place catch-all route before specific routes
+❌ Forget to handle error cases (invalid token, expired invitation)
+❌ Skip the success feedback - users need confirmation
+
+**Do This Instead**:
+✅ Create dedicated route for email link destinations
+✅ Handle both logged-in and logged-out user states
+✅ Show clear signup/login options for new users
+✅ Auto-accept for already authenticated users
+✅ Provide clear success/error messages
+✅ Test the complete flow: email → click → auth → acceptance
+
 ## Email Invitation Links - Wrong Domain (October 15, 2025)
 
 ### Issue: Invitation Email Links Point to Wrong/Non-Existent Domain
