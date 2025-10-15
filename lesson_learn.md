@@ -1,5 +1,93 @@
 # Lessons Learned
 
+## Delete Task Endpoint - Missing from Worker (October 15, 2025)
+
+### Issue: 404 Error When Deleting Tasks
+**Problem**: Frontend shows "Failed to delete task" with console error: `DELETE https://api.workoto.app/api/tasks/:id 404 (Not Found)`
+
+**Root Cause**: 
+- DELETE endpoint was **missing** from `tasks.ts` worker
+- File got truncated when replacing content from `tasks-updated.ts`
+- Only had GET, POST (create/complete), and PUT (assign) endpoints
+- Missing `tasks.delete('/:id', ...)` handler
+
+**How To Detect**:
+```
+Console Error:
+DELETE https://api.workoto.app/api/tasks/a4b06764.../  404 (Not Found)
+Error deleting task: Error: Not found
+
+// Check backend - no DELETE handler!
+grep "tasks.delete" cloudflare-workers/src/workers/tasks.ts
+// → No results
+```
+
+**Solution**:
+Added DELETE endpoint to tasks.ts:
+
+```typescript
+tasks.delete('/:id', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const taskId = c.req.param('id');
+
+  // Get task to verify ownership or workspace access
+  const task = await c.env.DB.prepare(`
+    SELECT t.*, wm.role
+    FROM tasks t
+    LEFT JOIN workspace_members wm ON t.workspace_id = wm.workspace_id AND wm.user_id = ?
+    WHERE t.id = ?
+  `).bind(auth.userId, taskId).first();
+
+  if (!task) {
+    return c.json({ error: 'Task not found' }, 404);
+  }
+
+  // Check permissions: task owner OR workspace owner/admin
+  const canDelete = task.user_id === auth.userId || 
+                    (task.workspace_id && (task.role === 'owner' || task.role === 'admin'));
+
+  if (!canDelete) {
+    return c.json({ error: 'Permission denied' }, 403);
+  }
+
+  // Delete the task
+  await c.env.DB.prepare(`DELETE FROM tasks WHERE id = ?`).bind(taskId).run();
+
+  return c.json({ success: true, message: 'Task deleted successfully' });
+});
+```
+
+**Key Features**:
+- ✅ **Permission checking**: Task owner OR workspace admin/owner can delete
+- ✅ **Proper error handling**: 404 if not found, 403 if no permission
+- ✅ **Workspace support**: Checks workspace membership for team tasks
+
+**Result**:
+- ✅ Users can delete their own tasks
+- ✅ Workspace admins/owners can delete team tasks
+- ✅ Proper authorization prevents unauthorized deletions
+
+**Key Learning**: 
+- **Always implement CRUD endpoints** - Create, Read, Update, AND Delete
+- **Check file completeness after copying** - Verify endpoints weren't truncated
+- **Test all operations** - Don't assume endpoints exist without testing
+- **Permission checks are critical** - Who can delete what?
+
+**Don't Do This**:
+❌ Copy/paste code without verifying completeness
+❌ Assume all CRUD operations exist without testing
+❌ Skip permission checks for destructive operations
+❌ Allow anyone to delete any task
+
+**Do This Instead**:
+✅ Verify all required endpoints are present after copying
+✅ Test each CRUD operation (Create, Read, Update, Delete)
+✅ Implement proper permission checks for sensitive operations
+✅ Use role-based access for workspace features
+✅ Return appropriate HTTP status codes (404, 403, 200)
+
 ## Email Invitation - Wrong Email Logged In (October 15, 2025)
 
 ### Issue: "Invitation not found or already used" When Accepting Valid Invitation

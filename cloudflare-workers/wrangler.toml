@@ -14,7 +14,7 @@ name = "task-manager-api-dev"
 
 # Frontend URL for email links
 [env.development.vars]
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = "https://www.workoto.app"
 
 # Custom domain (must be added via Cloudflare Dashboard):
 # Go to: Workers & Pages → task-manager-api-dev → Settings → Domains & Routes
@@ -73,22 +73,23 @@ FRONTEND_URL = "https://www.workoto.app"
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "task-manager-prod"
-database_id = "YOUR-PROD-DB-ID"  # Replace after creating
+database_name = "task-manager-dev"
+database_id = "83af6425-1a63-41f3-a722-46924438e7cc"  # Using dev DB for now
 
 [[env.production.kv_namespaces]]
 binding = "KV"
-id = "YOUR-PROD-KV-ID"  # Replace after creating
+id = "765c7311eb1a4e05be3ef67cc494bd41"  # Using dev KV for now
 
 [[env.production.queues.producers]]
 binding = "EMAIL_QUEUE"
-queue = "email-queue-prod"
+queue = "email-queue-dev"  # Using dev queue (shared with dev worker)
 
-[[env.production.queues.consumers]]
-queue = "email-queue-prod"
-max_batch_size = 10
-max_batch_timeout = 5
-max_retries = 3
+[[env.production.queues.producers]]
+binding = "AI_QUEUE"
+queue = "ai-queue-dev"  # Using dev queue (shared with dev worker)
+
+# Note: Queue consumers are handled by dev worker
+# Both dev and prod workers can produce to these queues
 
 # Uncomment when you have a domain:
 # [[env.production.routes]]

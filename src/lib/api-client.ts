@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://task-manager-api-dev.benjiemalinao879557.workers.dev';
 
 interface ApiError {
   error: string;

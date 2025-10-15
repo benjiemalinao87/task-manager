@@ -435,7 +435,84 @@ tasks.put('/:id/assign', async (c) => {
   }
 });
 
-// Continue with existing complete task endpoint...
-// (keeping the rest of the file the same)
+// ============================================
+// POST /api/tasks/:id/complete - Complete task
+// ============================================
+tasks.post('/:id/complete', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const taskId = c.req.param('id');
+
+  try {
+    const body = await c.req.json<CompleteTaskRequest>();
+    const now = getCurrentTimestamp();
+
+    await c.env.DB.prepare(`
+      UPDATE tasks
+      SET
+        status = 'completed',
+        actual_time = ?,
+        notes = ?,
+        completed_at = ?,
+        updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `).bind(
+      body.actualTime || null,
+      body.notes || null,
+      now,
+      now,
+      taskId,
+      auth.userId
+    ).run();
+
+    return c.json({ success: true, message: 'Task completed successfully' });
+  } catch (error) {
+    console.error('Complete task error:', error);
+    return c.json({ error: 'Failed to complete task' }, 500);
+  }
+});
+
+// ============================================
+// DELETE /api/tasks/:id - Delete task
+// ============================================
+tasks.delete('/:id', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const taskId = c.req.param('id');
+
+  try {
+    // Get task to verify ownership or workspace access
+    const task = await c.env.DB.prepare(`
+      SELECT t.*, wm.role
+      FROM tasks t
+      LEFT JOIN workspace_members wm ON t.workspace_id = wm.workspace_id AND wm.user_id = ?
+      WHERE t.id = ?
+    `).bind(auth.userId, taskId).first<{ user_id: string; workspace_id: string | null; role: string | null }>();
+
+    if (!task) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
+
+    // Check if user can delete: task owner, or workspace owner/admin
+    const canDelete = task.user_id === auth.userId || 
+                      (task.workspace_id && (task.role === 'owner' || task.role === 'admin'));
+
+    if (!canDelete) {
+      return c.json({ error: 'Permission denied. Only task owner or workspace admins can delete tasks.' }, 403);
+    }
+
+    // Delete the task
+    await c.env.DB.prepare(`
+      DELETE FROM tasks WHERE id = ?
+    `).bind(taskId).run();
+
+    return c.json({ success: true, message: 'Task deleted successfully' });
+  } catch (error) {
+    console.error('Delete task error:', error);
+    return c.json({ error: 'Failed to delete task' }, 500);
+  }
+});
 
 export default tasks;
