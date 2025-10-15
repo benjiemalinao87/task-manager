@@ -1,5 +1,98 @@
 # Lessons Learned
 
+## Update/Complete Task Endpoint - PATCH Missing (October 15, 2025)
+
+### Issue: 404 Error When Completing/Updating Tasks
+**Problem**: Frontend shows "Failed to complete task" with console error: `PATCH https://task-manager-api-dev.../api/tasks/:id 404 (Not Found)`
+
+**Root Cause**: 
+- Frontend calls `PATCH /api/tasks/:id` for general updates (including completing tasks)
+- Backend only had `POST /api/tasks/:id/complete` endpoint
+- Missing `tasks.patch('/:id', ...)` handler for general task updates
+
+**How To Detect**:
+```
+Console Error:
+PATCH https://task-manager-api-dev.../api/tasks/2fa4817d... 404 (Not Found)
+Error completing task: Error: Not found
+
+// Frontend calling:
+async updateTask(id: string, updates: { status?: string; notes?: string; actualTime?: string }) {
+  return this.patch(`/api/tasks/${id}`, updates);  ← PATCH request
+}
+
+// Backend only has:
+tasks.post('/:id/complete', ...)  ← POST /complete, not PATCH /:id
+```
+
+**Solution**:
+Added PATCH endpoint for general task updates:
+
+```typescript
+tasks.patch('/:id', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const taskId = c.req.param('id');
+  const body = await c.req.json();
+
+  // Build dynamic update query
+  const updates: string[] = [];
+  const bindings: any[] = [];
+
+  if (body.taskName !== undefined) {
+    updates.push('task_name = ?');
+    bindings.push(body.taskName);
+  }
+  if (body.status !== undefined) {
+    updates.push('status = ?');
+    bindings.push(body.status);
+    
+    // If marking as completed, set completed_at
+    if (body.status === 'completed') {
+      updates.push('completed_at = ?');
+      bindings.push(now);
+    }
+  }
+  // ... other fields
+
+  const query = `UPDATE tasks SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`;
+  await c.env.DB.prepare(query).bind(...bindings, taskId, auth.userId).run();
+
+  return c.json({ success: true });
+});
+```
+
+**Key Features**:
+- ✅ **Dynamic updates**: Only updates fields that are provided
+- ✅ **Auto-complete timestamp**: Sets `completed_at` when status becomes 'completed'
+- ✅ **Flexible**: Can update any combination of fields
+- ✅ **Secure**: Only owner can update their tasks
+
+**Result**:
+- ✅ Users can complete tasks (status → completed)
+- ✅ Users can update task properties
+- ✅ Frontend and backend now aligned on PATCH method
+
+**Key Learning**: 
+- **Match frontend and backend HTTP methods** - If frontend uses PATCH, backend must have PATCH handler
+- **PATCH for partial updates** - Perfect for updating specific fields without replacing the whole resource
+- **POST vs PATCH** - POST for actions (/complete), PATCH for property updates
+- **Dynamic query building** - Build SQL based on what fields are actually provided
+
+**Don't Do This**:
+❌ Have frontend use PATCH but backend only support POST
+❌ Require all fields in PATCH requests
+❌ Use POST for updates (use PATCH instead)
+❌ Forget to set completion timestamps
+
+**Do This Instead**:
+✅ Implement PATCH for partial updates
+✅ Build dynamic queries based on provided fields
+✅ Auto-set related fields (like completed_at when status = completed)
+✅ Keep frontend/backend HTTP methods consistent
+✅ Use semantic HTTP verbs: GET (read), POST (create/action), PUT (replace), PATCH (update), DELETE (remove)
+
 ## Delete Task Endpoint - Missing from Worker (October 15, 2025)
 
 ### Issue: 404 Error When Deleting Tasks

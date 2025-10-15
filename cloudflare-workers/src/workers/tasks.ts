@@ -435,6 +435,46 @@ tasks.put('/:id/assign', async (c) => {
   }
 });
 
+// Helper function to complete Asana task
+async function completeAsanaTask(
+  env: Env,
+  userId: string,
+  asanaTaskId: string
+): Promise<boolean> {
+  try {
+    const integration = await env.DB.prepare(
+      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ? AND is_active = 1'
+    ).bind(userId, 'asana').first<{ api_key: string }>();
+
+    if (!integration || !integration.api_key) {
+      return false;
+    }
+
+    const response = await fetch(`https://app.asana.com/api/1.0/tasks/${asanaTaskId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${integration.api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: {
+          completed: true
+        }
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Failed to complete Asana task:', await response.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error completing Asana task:', error);
+    return false;
+  }
+}
+
 // ============================================
 // PATCH /api/tasks/:id - Update task (general updates)
 // ============================================
@@ -454,6 +494,15 @@ tasks.patch('/:id', async (c) => {
       estimatedTime?: string;
       priority?: string;
     }>();
+
+    // Get task first to check asana_task_id
+    const task = await c.env.DB.prepare(`
+      SELECT asana_task_id FROM tasks WHERE id = ? AND user_id = ?
+    `).bind(taskId, auth.userId).first<{ asana_task_id: string | null }>();
+
+    if (!task) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
 
     const now = getCurrentTimestamp();
     
@@ -485,6 +534,11 @@ tasks.patch('/:id', async (c) => {
       if (body.status === 'completed') {
         updates.push('completed_at = ?');
         bindings.push(now);
+        
+        // Complete task in Asana if it exists
+        if (task.asana_task_id) {
+          await completeAsanaTask(c.env, auth.userId, task.asana_task_id);
+        }
       }
     }
     if (body.notes !== undefined) {
