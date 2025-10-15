@@ -9,11 +9,19 @@ import {
   BarChart3,
   Target,
   Activity,
-  Loader2
+  Loader2,
+  UserPlus
 } from 'lucide-react';
 import { TeamNavigation } from './TeamNavigation';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { apiClient } from '../lib/api-client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TeamMember {
   user_id: string;
@@ -42,7 +50,8 @@ interface Task {
   status: string;
   priority: string;
   created_at: string;
-  assigned_to_name?: string;
+  assigned_to?: string;
+  assignee_name?: string;
   duration_minutes?: number;
 }
 
@@ -58,6 +67,8 @@ export function TeamDashboard() {
   const [totalHours, setTotalHours] = useState(0);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
   const [tasksByPriority, setTasksByPriority] = useState<any[]>([]);
+  const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
 
   // Calculate date range
   const getDateRange = (range: string) => {
@@ -82,7 +93,7 @@ export function TeamDashboard() {
         const { dateFrom, dateTo } = getDateRange(dateRange);
 
         // Fetch all data in parallel
-        const [performanceData, tasksData, hoursData, tasksListData] = await Promise.all([
+        const [performanceData, tasksData, hoursData, tasksListData, membersData] = await Promise.all([
           apiClient.getPerformanceReport(currentWorkspace.id, { dateFrom, dateTo }),
           apiClient.getTasksReport(currentWorkspace.id, { dateFrom, dateTo }),
           apiClient.getHoursReport(currentWorkspace.id, { dateFrom, dateTo }),
@@ -90,11 +101,15 @@ export function TeamDashboard() {
             workspaceId: currentWorkspace.id,
             dateFrom,
             dateTo
-          })
+          }),
+          apiClient.getWorkspaceMembers(currentWorkspace.id)
         ]);
 
         // Process team members data
         setTeamMembers(performanceData.members || []);
+        
+        // Process workspace members for assignment
+        setWorkspaceMembers(membersData.members || []);
 
         // Process task stats
         setTaskStats(tasksData.stats || null);
@@ -161,6 +176,33 @@ export function TeamDashboard() {
 
     fetchDashboardData();
   }, [currentWorkspace, dateRange]);
+
+  // Handle task assignment
+  const handleAssignTask = async (taskId: string, assignedTo: string | null) => {
+    try {
+      setAssigningTaskId(taskId);
+      await apiClient.assignTask(taskId, { assignedTo });
+      
+      // Refresh the tasks list
+      const { dateFrom, dateTo } = getDateRange(dateRange);
+      const tasksListData = await apiClient.getTasksWithFilters({ 
+        workspaceId: currentWorkspace?.id,
+        dateFrom,
+        dateTo
+      });
+      
+      const sortedTasks = (tasksListData || [])
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 10);
+      setRecentTasks(sortedTasks);
+      
+    } catch (error: any) {
+      console.error('Error assigning task:', error);
+      alert(error.message || 'Failed to assign task. Please try again.');
+    } finally {
+      setAssigningTaskId(null);
+    }
+  };
 
   // Calculate stats from data
   const stats = {
@@ -354,23 +396,23 @@ export function TeamDashboard() {
               {teamMembers.length > 0 ? (
                 teamMembers.map((member, idx) => (
                   <div key={member.user_id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
                         <div className={`${getAvatarColor(idx)} w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold`}>
                           {getInitials(member.user_name)}
-                        </div>
-                        <div>
+                      </div>
+                      <div>
                           <p className="text-sm font-medium text-white">{member.user_name}</p>
                           <p className="text-xs text-gray-500">{member.total_tasks} tasks • {member.total_hours}h</p>
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-white">{member.completion_rate}%</span>
-                    </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2">
-                      <div
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-2">
+                    <div
                         className={`${getAvatarColor(idx)} h-2 rounded-full transition-all`}
                         style={{ width: `${member.completion_rate}%` }}
-                      />
+                    />
                     </div>
                   </div>
                 ))
@@ -445,44 +487,81 @@ export function TeamDashboard() {
                 {recentTasks.length > 0 ? (
                   recentTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-gray-800/30 transition-colors">
-                      <td className="py-4">
+                    <td className="py-4">
                         <span className="text-sm text-white font-medium">{task.task_name}</span>
-                      </td>
-                      <td className="py-4">
-                        <span className="text-sm text-blue-400">{task.assigned_to_name || 'Unassigned'}</span>
-                      </td>
-                      <td className="py-4">
+                    </td>
+                    <td className="py-4">
+                        {workspaceMembers.length > 1 && task.status !== 'completed' ? (
+                          <Select
+                            value={task.assigned_to || '__unassigned__'}
+                            onValueChange={(value) => {
+                              const assignedTo = value === '__unassigned__' ? null : value;
+                              handleAssignTask(task.id, assignedTo);
+                            }}
+                            disabled={assigningTaskId === task.id}
+                          >
+                            <SelectTrigger className="w-[180px] h-8 px-3 border border-gray-700 bg-[#1a2332] text-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+                              <SelectValue placeholder="Unassigned" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__unassigned__" className="cursor-pointer text-sm">
+                                <div className="flex items-center gap-2">
+                                  <UserPlus className="w-3 h-3 text-gray-500" />
+                                  <span className="text-gray-400">Unassigned</span>
+                                </div>
+                              </SelectItem>
+                              {workspaceMembers.map((member) => (
+                                <SelectItem key={member.user_id} value={member.user_id} className="cursor-pointer text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                    <span>{member.name || member.email}</span>
+                                    {member.role === 'owner' && (
+                                      <span className="text-xs text-purple-400">(Owner)</span>
+                                    )}
+                                    {member.role === 'admin' && (
+                                      <span className="text-xs text-blue-400">(Admin)</span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-sm text-blue-400">{task.assignee_name || 'Unassigned'}</span>
+                        )}
+                    </td>
+                    <td className="py-4">
                         <span className="text-sm text-gray-300">{formatDuration(task.duration_minutes)}</span>
-                      </td>
-                      <td className="py-4">
-                        {task.status === 'completed' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Completed
-                          </span>
+                    </td>
+                    <td className="py-4">
+                      {task.status === 'completed' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded-full">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Completed
+                        </span>
                         ) : task.status === 'in_progress' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
-                            <Clock className="w-3 h-3" />
-                            In Progress
-                          </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full">
+                          <Clock className="w-3 h-3" />
+                          In Progress
+                        </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-500/20 text-gray-400 text-xs font-medium rounded-full">
                             <Clock className="w-3 h-3" />
                             {task.status}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-4">
-                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full capitalize ${
-                          task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
-                          task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
-                          task.priority === 'medium' ? 'bg-blue-500/20 text-blue-400' :
-                          'bg-green-500/20 text-green-400'
-                        }`}>
-                          {task.priority || 'medium'}
                         </span>
-                      </td>
-                      <td className="py-4">
+                      )}
+                    </td>
+                    <td className="py-4">
+                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full capitalize ${
+                        task.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                        task.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                        task.priority === 'medium' ? 'bg-blue-500/20 text-blue-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                          {task.priority || 'medium'}
+                      </span>
+                    </td>
+                    <td className="py-4">
                         <span className="text-sm text-gray-400">{formatDate(task.created_at)}</span>
                       </td>
                     </tr>

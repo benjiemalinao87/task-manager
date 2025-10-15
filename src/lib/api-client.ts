@@ -404,7 +404,7 @@ class ApiClient {
   }
 
   async assignTask(taskId: string, data: { assignedTo: string | null }) {
-    return this.patch<{ success: boolean; message: string }>(`/api/tasks/${taskId}/assign`, data);
+    return this.put<{ success: boolean; message: string }>(`/api/tasks/${taskId}/assign`, data);
   }
 
   // Reports methods

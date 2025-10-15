@@ -22,6 +22,7 @@ import { TeamDashboard } from './components/TeamDashboard';
 import { TeamManagement } from './components/TeamManagement';
 import { TimeReports } from './components/TimeReports';
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher';
+import { PendingInvitations } from './components/PendingInvitations';
 
 function TaskManager() {
   const { user, logout } = useAuth();
@@ -128,6 +129,9 @@ function TaskManager() {
         <div className="mb-8">
           <ClockInOut />
         </div>
+
+        {/* Pending Invitations */}
+        <PendingInvitations />
 
         {/* Tab Navigation */}
         <div className="mb-8">

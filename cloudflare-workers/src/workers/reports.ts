@@ -66,41 +66,42 @@ reports.get('/:workspaceId/reports/hours', async (c) => {
 
     const totalHours = totalResult ? (totalResult.total_minutes / 60).toFixed(2) : '0.00';
 
-    // Build query for breakdown by user
+    // Build query for breakdown by user (include all workspace members, even with 0 hours)
     let breakdownQuery = `
       SELECT
-        ts.user_id,
+        wm.user_id,
         u.name as user_name,
         u.email as user_email,
         COALESCE(SUM(ts.duration_minutes), 0) as total_minutes,
         COUNT(ts.id) as session_count,
         MIN(ts.clock_in) as first_session,
         MAX(ts.clock_out) as last_session,
-        (SELECT COUNT(*) FROM tasks WHERE workspace_id = ? AND assigned_to = ts.user_id) as assigned_tasks,
-        (SELECT COUNT(*) FROM tasks WHERE workspace_id = ? AND assigned_to = ts.user_id AND status = 'completed') as completed_tasks
-      FROM time_sessions ts
-      INNER JOIN users u ON ts.user_id = u.id
-      WHERE ts.workspace_id = ?
+        (SELECT COUNT(*) FROM tasks WHERE workspace_id = ? AND assigned_to = wm.user_id) as assigned_tasks,
+        (SELECT COUNT(*) FROM tasks WHERE workspace_id = ? AND assigned_to = wm.user_id AND status = 'completed') as completed_tasks
+      FROM workspace_members wm
+      INNER JOIN users u ON wm.user_id = u.id
+      LEFT JOIN time_sessions ts ON ts.user_id = wm.user_id AND ts.workspace_id = wm.workspace_id
+      WHERE wm.workspace_id = ?
     `;
 
     const breakdownBindings: any[] = [workspaceId, workspaceId, workspaceId];
 
     if (targetUserId) {
-      breakdownQuery += ` AND ts.user_id = ?`;
+      breakdownQuery += ` AND wm.user_id = ?`;
       breakdownBindings.push(targetUserId);
     }
 
     if (dateFrom) {
-      breakdownQuery += ` AND date(ts.clock_in) >= date(?)`;
+      breakdownQuery += ` AND (ts.id IS NULL OR date(ts.clock_in) >= date(?))`;
       breakdownBindings.push(dateFrom);
     }
 
     if (dateTo) {
-      breakdownQuery += ` AND date(ts.clock_in) <= date(?)`;
+      breakdownQuery += ` AND (ts.id IS NULL OR date(ts.clock_in) <= date(?))`;
       breakdownBindings.push(dateTo);
     }
 
-    breakdownQuery += ` GROUP BY ts.user_id, u.name, u.email`;
+    breakdownQuery += ` GROUP BY wm.user_id, u.name, u.email`;
     breakdownQuery += ` ORDER BY total_minutes DESC`;
 
     const breakdownResult = await c.env.DB.prepare(breakdownQuery)
