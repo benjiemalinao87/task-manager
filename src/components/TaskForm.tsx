@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, ChevronDown, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink } from 'lucide-react';
+import { Plus, Loader2, ChevronDown, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink, Users } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
+import { useWorkspace } from '../context/WorkspaceContext';
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ interface AsanaWorkspace {
 }
 
 export function TaskForm({ onTaskCreated }: TaskFormProps) {
+  const { currentWorkspace } = useWorkspace();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [formData, setFormData] = useState({
@@ -33,7 +35,12 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
     taskLink: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     asanaProjectId: '', // For per-task project selection
+    assignedTo: '', // User ID to assign task to
   });
+
+  // Team collaboration state
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   // Asana integration state
   const [asanaIntegration, setAsanaIntegration] = useState<any>(null);
@@ -42,12 +49,27 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
   const [selectedAsanaWorkspace, setSelectedAsanaWorkspace] = useState('');
   const [isLoadingAsanaData, setIsLoadingAsanaData] = useState(false);
 
-  // Load Asana integration data when form expands
+  // Load Asana integration and workspace members when form expands
   useEffect(() => {
     if (isExpanded) {
       loadAsanaIntegration();
+      loadWorkspaceMembers();
     }
-  }, [isExpanded]);
+  }, [isExpanded, currentWorkspace]);
+
+  const loadWorkspaceMembers = async () => {
+    if (!currentWorkspace) return;
+
+    setIsLoadingMembers(true);
+    try {
+      const response = await apiClient.getWorkspaceMembers(currentWorkspace.id);
+      setWorkspaceMembers(response.members || []);
+    } catch (error) {
+      console.error('Error loading workspace members:', error);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
 
   const loadAsanaIntegration = async () => {
     try {
@@ -100,14 +122,18 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
 
     try {
       console.log('Creating task with Asana project ID:', formData.asanaProjectId);
-      
-      await apiClient.createTask({
+      console.log('Assigning to:', formData.assignedTo);
+
+      // Use the new createTaskWithAssignment method that supports workspace and assignment
+      await apiClient.createTaskWithAssignment({
         taskName: formData.taskName,
         description: formData.description,
         estimatedTime: formData.estimatedTime,
         taskLink: formData.taskLink || undefined,
         priority: formData.priority,
-        asanaProjectId: formData.asanaProjectId || undefined, // Pass selected Asana project
+        asanaProjectId: formData.asanaProjectId || undefined,
+        workspaceId: currentWorkspace?.id,
+        assignedTo: formData.assignedTo || undefined,
       });
 
       setFormData({
@@ -117,6 +143,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         taskLink: '',
         priority: 'medium',
         asanaProjectId: '',
+        assignedTo: '',
       });
 
       setIsExpanded(false);
@@ -239,6 +266,49 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             </Select>
           </div>
         </div>
+
+        {/* Task Assignment - Only show if workspace has multiple members */}
+        {workspaceMembers.length > 1 && (
+          <div>
+            <label htmlFor="assignedTo" className="block text-sm font-semibold text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Assign To <span className="text-gray-400 font-normal">(Optional)</span>
+              </div>
+            </label>
+            <Select
+              value={formData.assignedTo || '__unassigned__'}
+              onValueChange={(value) => {
+                const assignedTo = value === '__unassigned__' ? '' : value;
+                setFormData({ ...formData, assignedTo });
+              }}
+              disabled={isLoadingMembers}
+            >
+              <SelectTrigger className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white">
+                <SelectValue placeholder={isLoadingMembers ? "Loading members..." : "Leave unassigned"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unassigned__" className="cursor-pointer">
+                  <span className="text-gray-500">Leave unassigned</span>
+                </SelectItem>
+                {workspaceMembers.map((member) => (
+                  <SelectItem key={member.user_id} value={member.user_id} className="cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span>{member.name || member.email}</span>
+                      {member.role === 'owner' && (
+                        <span className="text-xs text-purple-600 font-medium">(Owner)</span>
+                      )}
+                      {member.role === 'admin' && (
+                        <span className="text-xs text-blue-600 font-medium">(Admin)</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div>
           <label htmlFor="taskLink" className="block text-sm font-semibold text-gray-700 mb-2">

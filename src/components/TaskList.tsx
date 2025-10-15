@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink, Pause, Play, AlertTriangle, Flame, FileText } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink, Pause, Play, AlertTriangle, Flame, FileText, User } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
@@ -21,6 +21,14 @@ interface Task {
   completed_at?: string;
   created_at: string;
   updated_at: string;
+  workspace_id?: string;
+  assigned_to?: string;
+  assigned_by?: string;
+  assigned_at?: string;
+  assignee_name?: string;
+  assignee_email?: string;
+  creator_name?: string;
+  creator_email?: string;
 }
 
 interface TaskListProps {
@@ -337,9 +345,18 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                   {task.task_name}
                 </h3>
                 {!isExpanded && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span className="font-mono font-bold">{calculateElapsedTime(task.started_at, task.id)}</span>
+                  <div className="flex items-center gap-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="font-mono font-bold">{calculateElapsedTime(task.started_at, task.id)}</span>
+                    </div>
+                    {task.assigned_to && task.assignee_name && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400">•</span>
+                        <User className="w-4 h-4" />
+                        <span className="font-medium">{task.assignee_name}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -455,6 +472,18 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                         <div>
                           <span className="block text-xs text-gray-500 font-medium">Actual Time</span>
                           <span className="font-semibold">{task.actual_time}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {task.assigned_to && task.assignee_name && (
+                      <div className="flex items-center gap-3 text-gray-700">
+                        <div className="bg-indigo-100 p-2 rounded-lg">
+                          <User className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div>
+                          <span className="block text-xs text-gray-500 font-medium">Assigned To</span>
+                          <span className="font-semibold">{task.assignee_name}</span>
                         </div>
                       </div>
                     )}
