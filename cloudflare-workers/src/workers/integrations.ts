@@ -292,5 +292,94 @@ integrations.get('/asana/projects', async (c) => {
   }
 });
 
+// GET /api/integrations/asana/projects/:projectId/tasks - Get Asana project tasks
+integrations.get('/asana/projects/:projectId/tasks', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  try {
+    const projectId = c.req.param('projectId');
+
+    if (!projectId) {
+      return c.json({ error: 'projectId is required' }, 400);
+    }
+
+    const integration = await c.env.DB.prepare(
+      'SELECT api_key FROM integrations WHERE user_id = ? AND integration_type = ?'
+    ).bind(auth.userId, 'asana').first<{ api_key: string }>();
+
+    if (!integration) {
+      return c.json({ error: 'Asana not configured' }, 404);
+    }
+
+    const response = await fetch(
+      `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=name,notes,due_on,completed,assignee.name`,
+      {
+        headers: {
+          'Authorization': `Bearer ${integration.api_key}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return c.json({ error: 'Failed to fetch tasks' }, 400);
+    }
+
+    const data = await response.json();
+    return c.json({ tasks: data.data });
+  } catch (error) {
+    console.error('Get project tasks error:', error);
+    return c.json({ error: 'Failed to get project tasks' }, 500);
+  }
+});
+
+// POST /api/integrations/asana/import - Import Asana task
+integrations.post('/asana/import', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  try {
+    const { asanaTaskId, taskName, description, estimatedTime, priority, asanaProjectId } = await c.req.json();
+
+    if (!asanaTaskId || !taskName || !description || !estimatedTime) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Check if task already exists
+    const existingTask = await c.env.DB.prepare(
+      'SELECT id FROM tasks WHERE user_id = ? AND asana_task_id = ?'
+    ).bind(auth.userId, asanaTaskId).first<{ id: string }>();
+
+    if (existingTask) {
+      return c.json({ error: 'Task already imported' }, 400);
+    }
+
+    // Create the task in our system
+    const taskId = generateId();
+    const now = getCurrentTimestamp();
+    const taskPriority = priority || 'medium';
+
+    await c.env.DB.prepare(`
+      INSERT INTO tasks (
+        id, user_id, task_name, description, estimated_time,
+        priority, asana_task_id, started_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      taskId, auth.userId, taskName, description, estimatedTime,
+      taskPriority, asanaTaskId, now, now, now
+    ).run();
+
+    const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
+      .bind(taskId).first();
+
+    return c.json(task, 201);
+  } catch (error) {
+    console.error('Import Asana task error:', error);
+    return c.json({ error: 'Failed to import task' }, 500);
+  }
+});
+
 export default integrations;
 

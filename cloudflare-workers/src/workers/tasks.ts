@@ -33,7 +33,8 @@ async function createAsanaTask(
   env: Env,
   userId: string,
   taskName: string,
-  description: string
+  description: string,
+  specificProjectId?: string
 ): Promise<string | null> {
   try {
     // Get active Asana integration
@@ -50,9 +51,17 @@ async function createAsanaTask(
       ? JSON.parse(integration.config)
       : integration.config;
 
-    const projectGid = config?.project_gid;
+    // Use specific project ID if provided, otherwise use default from config
+    const projectGid = specificProjectId || config?.project_gid;
     const assigneeEmail = config?.default_assignee_email;
     const workspaceGid = config?.workspace_gid;
+
+    console.log('🎯 Asana createTask - Project selection:', {
+      specificProjectId: specificProjectId || '(not provided)',
+      defaultProjectGid: config?.project_gid || '(not configured)',
+      finalProjectGid: projectGid,
+      usingSpecificProject: !!specificProjectId
+    });
 
     console.log('Asana config:', JSON.stringify({
       projectGid,
@@ -144,7 +153,14 @@ tasks.post('/', async (c) => {
   if (auth instanceof Response) return auth;
 
   try {
-    const { taskName, description, estimatedTime, taskLink, priority } = await c.req.json<CreateTaskRequest>();
+    const { taskName, description, estimatedTime, taskLink, priority, asanaProjectId } = await c.req.json<CreateTaskRequest>();
+
+    console.log('📝 Creating task with data:', {
+      taskName,
+      priority,
+      asanaProjectId: asanaProjectId || '(using default)',
+      hasAsanaProjectId: !!asanaProjectId
+    });
 
     if (!taskName || !description || !estimatedTime) {
       return c.json({ error: 'Missing required fields' }, 400);
@@ -155,7 +171,8 @@ tasks.post('/', async (c) => {
     const taskPriority = priority || 'medium';
 
     // Try to create Asana task first
-    const asanaTaskId = await createAsanaTask(c.env, auth.userId, taskName, description);
+    console.log('🔗 Calling createAsanaTask with specificProjectId:', asanaProjectId);
+    const asanaTaskId = await createAsanaTask(c.env, auth.userId, taskName, description, asanaProjectId);
 
     await c.env.DB.prepare(`
       INSERT INTO tasks (

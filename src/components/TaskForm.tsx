@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Loader2, ChevronDown, AlertCircle, AlertTriangle, Flame, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Loader2, ChevronDown, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import {
   Select,
@@ -13,6 +13,16 @@ interface TaskFormProps {
   onTaskCreated: () => void;
 }
 
+interface AsanaProject {
+  gid: string;
+  name: string;
+}
+
+interface AsanaWorkspace {
+  gid: string;
+  name: string;
+}
+
 export function TaskForm({ onTaskCreated }: TaskFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -22,19 +32,82 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
     estimatedTime: '',
     taskLink: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    asanaProjectId: '', // For per-task project selection
   });
+
+  // Asana integration state
+  const [asanaIntegration, setAsanaIntegration] = useState<any>(null);
+  const [asanaWorkspaces, setAsanaWorkspaces] = useState<AsanaWorkspace[]>([]);
+  const [asanaProjects, setAsanaProjects] = useState<AsanaProject[]>([]);
+  const [selectedAsanaWorkspace, setSelectedAsanaWorkspace] = useState('');
+  const [isLoadingAsanaData, setIsLoadingAsanaData] = useState(false);
+
+  // Load Asana integration data when form expands
+  useEffect(() => {
+    if (isExpanded) {
+      loadAsanaIntegration();
+    }
+  }, [isExpanded]);
+
+  const loadAsanaIntegration = async () => {
+    try {
+      const integration = await apiClient.getIntegration('asana');
+      if (integration && integration.is_active) {
+        setAsanaIntegration(integration);
+        
+        // Load workspaces
+        const { workspaces } = await apiClient.getAsanaWorkspaces();
+        setAsanaWorkspaces(workspaces || []);
+        
+        // If integration has a default workspace, load its projects
+        if (integration.config?.workspace_gid) {
+          setSelectedAsanaWorkspace(integration.config.workspace_gid);
+          await loadAsanaProjects(integration.config.workspace_gid);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Asana integration:', error);
+    }
+  };
+
+  const loadAsanaProjects = async (workspaceId: string) => {
+    if (!workspaceId) return;
+    
+    setIsLoadingAsanaData(true);
+    try {
+      const { projects } = await apiClient.getAsanaProjects(workspaceId);
+      setAsanaProjects(projects || []);
+    } catch (error) {
+      console.error('Error loading Asana projects:', error);
+    } finally {
+      setIsLoadingAsanaData(false);
+    }
+  };
+
+  const handleAsanaWorkspaceChange = async (workspaceId: string) => {
+    setSelectedAsanaWorkspace(workspaceId);
+    setFormData({ ...formData, asanaProjectId: '' }); // Reset project selection
+    if (workspaceId) {
+      await loadAsanaProjects(workspaceId);
+    } else {
+      setAsanaProjects([]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      console.log('Creating task with Asana project ID:', formData.asanaProjectId);
+      
       await apiClient.createTask({
         taskName: formData.taskName,
         description: formData.description,
         estimatedTime: formData.estimatedTime,
         taskLink: formData.taskLink || undefined,
         priority: formData.priority,
+        asanaProjectId: formData.asanaProjectId || undefined, // Pass selected Asana project
       });
 
       setFormData({
@@ -43,6 +116,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         estimatedTime: '',
         taskLink: '',
         priority: 'medium',
+        asanaProjectId: '',
       });
 
       setIsExpanded(false);
@@ -179,6 +253,71 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             placeholder="https://example.com/task"
           />
         </div>
+
+        {/* Asana Project Selection */}
+        {asanaIntegration && asanaIntegration.is_active && asanaIntegration.api_key && (
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ExternalLink className="w-4 h-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-purple-800">Asana Integration</h3>
+            </div>
+            <p className="text-xs text-purple-600 mb-4">
+              Choose a specific Asana project for this task, or leave empty to use your default project.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="asanaWorkspace" className="block text-xs font-medium text-purple-700 mb-2">
+                  Workspace
+                </label>
+                <Select
+                  value={selectedAsanaWorkspace}
+                  onValueChange={handleAsanaWorkspaceChange}
+                >
+                  <SelectTrigger className="w-full h-[42px] px-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {asanaWorkspaces.map((workspace) => (
+                      <SelectItem key={workspace.gid} value={workspace.gid} className="cursor-pointer">
+                        {workspace.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label htmlFor="asanaProject" className="block text-xs font-medium text-purple-700 mb-2">
+                  Project <span className="text-gray-400">(Optional)</span>
+                </label>
+                <Select
+                  value={formData.asanaProjectId || '__default__'}
+                  onValueChange={(value) => {
+                    const projectId = value === '__default__' ? '' : value;
+                    console.log('Asana project selected:', { value, projectId });
+                    setFormData({ ...formData, asanaProjectId: projectId });
+                  }}
+                  disabled={!selectedAsanaWorkspace || isLoadingAsanaData}
+                >
+                  <SelectTrigger className="w-full h-[42px] px-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white">
+                    <SelectValue placeholder={isLoadingAsanaData ? "Loading..." : "Use default project"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__" className="cursor-pointer">
+                      <span className="text-gray-500">Use default project</span>
+                    </SelectItem>
+                    {asanaProjects.map((project) => (
+                      <SelectItem key={project.gid} value={project.gid} className="cursor-pointer">
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="pt-2">
           <button
