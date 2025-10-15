@@ -314,8 +314,22 @@ integrations.get('/asana/projects/:projectId/tasks', async (c) => {
 
     console.log(`📥 Fetching tasks from Asana project: ${projectId}`);
     
+    // First, get the current user's Asana ID
+    const meResponse = await fetch('https://app.asana.com/api/1.0/users/me', {
+      headers: {
+        'Authorization': `Bearer ${integration.api_key}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    let currentUserGid = null;
+    if (meResponse.ok) {
+      const userData = await meResponse.json() as { data: { gid: string } };
+      currentUserGid = userData.data?.gid;
+    }
+    
     const response = await fetch(
-      `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=name,notes,due_on,completed,assignee.name`,
+      `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=name,notes,due_on,completed,assignee.name,assignee.gid`,
       {
         headers: {
           'Authorization': `Bearer ${integration.api_key}`,
@@ -334,9 +348,17 @@ integrations.get('/asana/projects/:projectId/tasks', async (c) => {
       }, 400);
     }
 
-    const data = await response.json();
-    console.log(`✅ Fetched ${data.data?.length || 0} tasks from Asana`);
-    return c.json({ tasks: data.data });
+    const data = await response.json() as { data: any[] };
+    console.log(`✅ Found ${data.data.length} total tasks in Asana project`);
+    
+    // Filter to only tasks assigned to the current user
+    const myTasks = currentUserGid 
+      ? data.data.filter((task: any) => task.assignee?.gid === currentUserGid)
+      : data.data;
+    
+    console.log(`📌 Filtered to ${myTasks.length} tasks assigned to you`);
+    
+    return c.json({ tasks: myTasks });
   } catch (error) {
     console.error('Get project tasks error:', error);
     return c.json({ error: 'Failed to get project tasks' }, 500);
@@ -349,10 +371,23 @@ integrations.post('/asana/import', async (c) => {
   if (auth instanceof Response) return auth;
 
   try {
-    const { asanaTaskId, taskName, description, estimatedTime, priority, asanaProjectId } = await c.req.json();
+    const { asanaTaskId, taskName, description, estimatedTime, priority, asanaProjectId, workspaceId } = await c.req.json();
 
     if (!asanaTaskId || !taskName || !description || !estimatedTime) {
       return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Get user's default workspace if not provided
+    let finalWorkspaceId = workspaceId;
+    if (!finalWorkspaceId) {
+      const defaultWorkspace = await c.env.DB.prepare(`
+        SELECT workspace_id FROM workspace_members
+        WHERE user_id = ?
+        ORDER BY joined_at ASC
+        LIMIT 1
+      `).bind(auth.userId).first<{ workspace_id: string }>();
+      
+      finalWorkspaceId = defaultWorkspace?.workspace_id || null;
     }
 
     // Check if task already exists
@@ -372,16 +407,23 @@ integrations.post('/asana/import', async (c) => {
     await c.env.DB.prepare(`
       INSERT INTO tasks (
         id, user_id, task_name, description, estimated_time,
-        priority, asana_task_id, started_at, created_at, updated_at
+        priority, asana_task_id, workspace_id, started_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       taskId, auth.userId, taskName, description, estimatedTime,
-      taskPriority, asanaTaskId, now, now, now
+      taskPriority, asanaTaskId, finalWorkspaceId, now, now, now
     ).run();
 
-    const task = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?')
-      .bind(taskId).first();
+    const task = await c.env.DB.prepare(`
+      SELECT 
+        t.*,
+        u.name as creator_name,
+        u.email as creator_email
+      FROM tasks t
+      LEFT JOIN users u ON t.user_id = u.id
+      WHERE t.id = ?
+    `).bind(taskId).first();
 
     return c.json(task, 201);
   } catch (error) {

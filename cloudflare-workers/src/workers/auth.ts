@@ -54,10 +54,26 @@ auth.post('/signup', async (c) => {
       VALUES (?, ?, ?, ?, ?)
     `).bind(settingsId, userId, email.toLowerCase(), now, now).run();
 
+    // Create default workspace for new user
+    const workspaceId = generateId();
+    const workspaceName = name ? `${name}'s Workspace` : 'My Workspace';
+    
+    await c.env.DB.prepare(`
+      INSERT INTO workspaces (id, name, owner_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(workspaceId, workspaceName, userId, now, now).run();
+
+    // Add user as owner of the workspace
+    await c.env.DB.prepare(`
+      INSERT INTO workspace_members (id, workspace_id, user_id, role, joined_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(generateId(), workspaceId, userId, 'owner', now).run();
+
     return c.json({
       success: true,
       userId,
-      message: 'User created successfully'
+      workspaceId,
+      message: 'User created successfully with default workspace'
     }, 201);
 
   } catch (error) {
