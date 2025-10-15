@@ -2,13 +2,13 @@
 
 ## Email Invitation Links - Wrong Domain (October 15, 2025)
 
-### Issue: Invitation Email Links Point to Non-Existent Domain
-**Problem**: Invitation emails were sent successfully and looked great, but clicking "Accept Invitation" button led to `app.workoto.com` which gives `DNS_PROBE_FINISHED_NXDOMAIN` error because the domain doesn't exist yet.
+### Issue: Invitation Email Links Point to Wrong/Non-Existent Domain
+**Problem**: Invitation emails were sent successfully and looked great, but clicking "Accept Invitation" button led to `app.workoto.com` which gives `DNS_PROBE_FINISHED_NXDOMAIN` error. The actual production frontend is at `https://www.workoto.app/`.
 
 **Root Cause**: 
 - Invitation email template uses `c.env.FRONTEND_URL || 'https://app.workoto.com'` for the invitation link
 - `FRONTEND_URL` environment variable was **not configured** in `wrangler.toml`
-- Fell back to hardcoded `app.workoto.com` domain
+- Fell back to hardcoded **wrong domain** `app.workoto.com` (should be `www.workoto.app`)
 - For development, needs to point to `http://localhost:5173`
 
 **How To Detect**:
@@ -31,7 +31,7 @@ FRONTEND_URL = "http://localhost:5173"
 
 # Production environment
 [env.production.vars]
-FRONTEND_URL = "https://app.workoto.com"
+FRONTEND_URL = "https://www.workoto.app"
 ```
 
 **Result**:

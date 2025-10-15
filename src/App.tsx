@@ -23,6 +23,7 @@ import { TeamManagement } from './components/TeamManagement';
 import { TimeReports } from './components/TimeReports';
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher';
 import { PendingInvitations } from './components/PendingInvitations';
+import { AcceptInvitation } from './components/AcceptInvitation';
 
 function TaskManager() {
   const { user, logout } = useAuth();
@@ -214,6 +215,7 @@ function AppContent() {
       <Route path="/team-dashboard" element={<TeamDashboard />} />
       <Route path="/team-management" element={<TeamManagement />} />
       <Route path="/time-reports" element={<TimeReports />} />
+      <Route path="/accept-invitation" element={<AcceptInvitation />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
