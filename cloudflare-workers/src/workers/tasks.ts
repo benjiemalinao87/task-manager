@@ -436,6 +436,94 @@ tasks.put('/:id/assign', async (c) => {
 });
 
 // ============================================
+// PATCH /api/tasks/:id - Update task (general updates)
+// ============================================
+tasks.patch('/:id', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const taskId = c.req.param('id');
+
+  try {
+    const body = await c.req.json<{
+      status?: string;
+      notes?: string;
+      actualTime?: string;
+      taskName?: string;
+      description?: string;
+      estimatedTime?: string;
+      priority?: string;
+    }>();
+
+    const now = getCurrentTimestamp();
+    
+    // Build dynamic update query
+    const updates: string[] = [];
+    const bindings: any[] = [];
+
+    if (body.taskName !== undefined) {
+      updates.push('task_name = ?');
+      bindings.push(body.taskName);
+    }
+    if (body.description !== undefined) {
+      updates.push('description = ?');
+      bindings.push(body.description);
+    }
+    if (body.estimatedTime !== undefined) {
+      updates.push('estimated_time = ?');
+      bindings.push(body.estimatedTime);
+    }
+    if (body.priority !== undefined) {
+      updates.push('priority = ?');
+      bindings.push(body.priority);
+    }
+    if (body.status !== undefined) {
+      updates.push('status = ?');
+      bindings.push(body.status);
+      
+      // If marking as completed, set completed_at
+      if (body.status === 'completed') {
+        updates.push('completed_at = ?');
+        bindings.push(now);
+      }
+    }
+    if (body.notes !== undefined) {
+      updates.push('notes = ?');
+      bindings.push(body.notes);
+    }
+    if (body.actualTime !== undefined) {
+      updates.push('actual_time = ?');
+      bindings.push(body.actualTime);
+    }
+
+    if (updates.length === 0) {
+      return c.json({ error: 'No updates provided' }, 400);
+    }
+
+    // Add updated_at
+    updates.push('updated_at = ?');
+    bindings.push(now);
+
+    // Add WHERE clause bindings
+    bindings.push(taskId);
+    bindings.push(auth.userId);
+
+    const query = `
+      UPDATE tasks
+      SET ${updates.join(', ')}
+      WHERE id = ? AND user_id = ?
+    `;
+
+    await c.env.DB.prepare(query).bind(...bindings).run();
+
+    return c.json({ success: true, message: 'Task updated successfully' });
+  } catch (error) {
+    console.error('Update task error:', error);
+    return c.json({ error: 'Failed to update task' }, 500);
+  }
+});
+
+// ============================================
 // POST /api/tasks/:id/complete - Complete task
 // ============================================
 tasks.post('/:id/complete', async (c) => {
