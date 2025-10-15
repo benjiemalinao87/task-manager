@@ -312,6 +312,8 @@ integrations.get('/asana/projects/:projectId/tasks', async (c) => {
       return c.json({ error: 'Asana not configured' }, 404);
     }
 
+    console.log(`📥 Fetching tasks from Asana project: ${projectId}`);
+    
     const response = await fetch(
       `https://app.asana.com/api/1.0/projects/${projectId}/tasks?opt_fields=name,notes,due_on,completed,assignee.name`,
       {
@@ -323,10 +325,17 @@ integrations.get('/asana/projects/:projectId/tasks', async (c) => {
     );
 
     if (!response.ok) {
-      return c.json({ error: 'Failed to fetch tasks' }, 400);
+      const errorText = await response.text();
+      console.error('❌ Asana API error:', response.status, errorText);
+      return c.json({ 
+        error: 'Failed to fetch tasks from Asana', 
+        details: errorText,
+        status: response.status 
+      }, 400);
     }
 
     const data = await response.json();
+    console.log(`✅ Fetched ${data.data?.length || 0} tasks from Asana`);
     return c.json({ tasks: data.data });
   } catch (error) {
     console.error('Get project tasks error:', error);

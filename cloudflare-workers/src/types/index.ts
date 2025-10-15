@@ -111,6 +111,7 @@ export interface CreateTaskRequest {
   estimatedTime: string;
   taskLink?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
+  asanaProjectId?: string;
 }
 
 export interface CompleteTaskRequest {

@@ -11,6 +11,9 @@ import ai from './workers/ai';
 import settings from './workers/settings';
 import timeSessions from './workers/time-sessions';
 import integrations from './workers/integrations';
+import workspaces from './workers/workspaces';
+import invitations from './workers/invitations';
+import reports from './workers/reports';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -37,6 +40,14 @@ app.route('/api/ai', ai);
 app.route('/api/settings', settings);
 app.route('/api/time-sessions', timeSessions);
 app.route('/api/integrations', integrations);
+
+// Mount workspace-related routes
+app.route('/api/workspaces', workspaces);
+app.route('/api/workspaces', invitations);
+app.route('/api/workspaces', reports);
+
+// Mount standalone invitation routes (for accepting/declining by token)
+app.route('/api/invitations', invitations);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

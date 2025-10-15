@@ -111,6 +111,7 @@ class ApiClient {
     estimatedTime: string;
     taskLink?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
+    asanaProjectId?: string;
   }) {
     return this.post<any>('/api/tasks', task);
   }
@@ -196,6 +197,21 @@ class ApiClient {
 
   async getAsanaProjects(workspaceId: string) {
     return this.get<{ projects: any[] }>(`/api/integrations/asana/projects?workspace_id=${workspaceId}`);
+  }
+
+  async getAsanaProjectTasks(projectId: string) {
+    return this.get<{ tasks: any[] }>(`/api/integrations/asana/projects/${projectId}/tasks`);
+  }
+
+  async importAsanaTask(data: {
+    asanaTaskId: string;
+    taskName: string;
+    description: string;
+    estimatedTime: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    asanaProjectId: string;
+  }) {
+    return this.post<any>('/api/integrations/asana/import', data);
   }
 
   // Invoice methods
@@ -290,6 +306,157 @@ class ApiClient {
 
   async deleteClient(id: string) {
     return this.delete<{ message: string }>(`/api/clients/${id}`);
+  }
+
+  // Workspace methods
+  async getWorkspaces() {
+    return this.get<{ workspaces: any[] }>('/api/workspaces');
+  }
+
+  async getWorkspace(id: string) {
+    return this.get<{ workspace: any }>(`/api/workspaces/${id}`);
+  }
+
+  async createWorkspace(data: { name: string }) {
+    return this.post<{ workspace: any }>('/api/workspaces', data);
+  }
+
+  async updateWorkspace(id: string, data: { name: string }) {
+    return this.patch<{ workspace: any }>(`/api/workspaces/${id}`, data);
+  }
+
+  async deleteWorkspace(id: string) {
+    return this.delete<{ success: boolean; message: string }>(`/api/workspaces/${id}`);
+  }
+
+  async getWorkspaceMembers(workspaceId: string) {
+    return this.get<{ members: any[] }>(`/api/workspaces/${workspaceId}/members`);
+  }
+
+  async removeWorkspaceMember(workspaceId: string, userId: string) {
+    return this.delete<{ success: boolean; message: string }>(
+      `/api/workspaces/${workspaceId}/members/${userId}`
+    );
+  }
+
+  // Invitation methods
+  async inviteToWorkspace(workspaceId: string, data: { email: string; role?: 'admin' | 'member' }) {
+    return this.post<{ invitation: any }>(`/api/workspaces/${workspaceId}/invitations`, data);
+  }
+
+  async getWorkspaceInvitations(workspaceId: string) {
+    return this.get<{ invitations: any[] }>(`/api/workspaces/${workspaceId}/invitations`);
+  }
+
+  async getPendingInvitations() {
+    return this.get<{ invitations: any[] }>('/api/invitations/pending');
+  }
+
+  async acceptInvitation(token: string) {
+    return this.post<{ success: boolean; workspace: any; message: string }>(
+      `/api/invitations/${token}/accept`
+    );
+  }
+
+  async declineInvitation(token: string) {
+    return this.post<{ success: boolean; message: string }>(`/api/invitations/${token}/decline`);
+  }
+
+  async cancelInvitation(workspaceId: string, invitationId: string) {
+    return this.delete<{ success: boolean; message: string }>(
+      `/api/workspaces/${workspaceId}/invitations/${invitationId}`
+    );
+  }
+
+  // Enhanced task methods with workspace support
+  async getTasksWithFilters(filters: {
+    status?: string;
+    workspaceId?: string;
+    assignedTo?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.workspaceId) params.append('workspaceId', filters.workspaceId);
+    if (filters.assignedTo) params.append('assignedTo', filters.assignedTo);
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+    return this.get<any[]>(`/api/tasks?${params.toString()}`);
+  }
+
+  async getTask(id: string) {
+    return this.get<any>(`/api/tasks/${id}`);
+  }
+
+  async createTaskWithAssignment(task: {
+    taskName: string;
+    description: string;
+    estimatedTime: string;
+    taskLink?: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    workspaceId?: string;
+    assignedTo?: string;
+    asanaProjectId?: string;
+  }) {
+    return this.post<any>('/api/tasks', task);
+  }
+
+  async assignTask(taskId: string, data: { assignedTo: string | null }) {
+    return this.patch<{ success: boolean; message: string }>(`/api/tasks/${taskId}/assign`, data);
+  }
+
+  // Reports methods
+  async getHoursReport(workspaceId: string, filters: {
+    userId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    groupBy?: string;
+    includeDetails?: boolean;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.userId) params.append('userId', filters.userId);
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters.groupBy) params.append('groupBy', filters.groupBy);
+    if (filters.includeDetails) params.append('includeDetails', 'true');
+
+    return this.get<any>(`/api/workspaces/${workspaceId}/reports/hours?${params.toString()}`);
+  }
+
+  async getTasksReport(workspaceId: string, filters: {
+    userId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.userId) params.append('userId', filters.userId);
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters.status) params.append('status', filters.status);
+
+    return this.get<any>(`/api/workspaces/${workspaceId}/reports/tasks?${params.toString()}`);
+  }
+
+  async getPerformanceReport(workspaceId: string, filters: {
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+    return this.get<any>(`/api/workspaces/${workspaceId}/reports/performance?${params.toString()}`);
+  }
+
+  // PUT method for complete updates
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
   }
 }
 

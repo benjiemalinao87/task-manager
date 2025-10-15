@@ -25,7 +25,64 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_active ON users(is_active);
 
 -- ============================================
--- Tasks Table (UPDATED with user_id)
+-- Workspaces Table (TEAM FEATURE)
+-- ============================================
+CREATE TABLE IF NOT EXISTS workspaces (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_workspaces_owner_id ON workspaces(owner_id);
+
+-- ============================================
+-- Workspace Members Table (TEAM FEATURE)
+-- ============================================
+CREATE TABLE IF NOT EXISTS workspace_members (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role TEXT DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+  invited_by TEXT,
+  joined_at TEXT DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE(workspace_id, user_id)
+);
+
+CREATE INDEX idx_workspace_members_workspace_id ON workspace_members(workspace_id);
+CREATE INDEX idx_workspace_members_user_id ON workspace_members(user_id);
+CREATE INDEX idx_workspace_members_role ON workspace_members(role);
+
+-- ============================================
+-- Workspace Invitations Table (TEAM FEATURE)
+-- ============================================
+CREATE TABLE IF NOT EXISTS workspace_invitations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT DEFAULT 'member' CHECK(role IN ('admin', 'member')),
+  invited_by TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined', 'expired')),
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+  FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_workspace_invitations_token ON workspace_invitations(token);
+CREATE INDEX idx_workspace_invitations_email ON workspace_invitations(email);
+CREATE INDEX idx_workspace_invitations_workspace_id ON workspace_invitations(workspace_id);
+CREATE INDEX idx_workspace_invitations_status ON workspace_invitations(status);
+
+-- ============================================
+-- Tasks Table (UPDATED with team features)
 -- ============================================
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
@@ -44,7 +101,14 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  workspace_id TEXT,
+  assigned_to TEXT,
+  assigned_by TEXT,
+  assigned_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
@@ -52,6 +116,9 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_user_status ON tasks(user_id, status);
 CREATE INDEX idx_tasks_priority ON tasks(priority);
+CREATE INDEX idx_tasks_workspace_id ON tasks(workspace_id);
+CREATE INDEX idx_tasks_assigned_to ON tasks(assigned_to);
+CREATE INDEX idx_tasks_workspace_assigned ON tasks(workspace_id, assigned_to);
 
 -- ============================================
 -- Settings Table (UPDATED - per user)
@@ -76,7 +143,7 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX idx_settings_user_id ON settings(user_id);
 
 -- ============================================
--- Time Sessions Table (UPDATED with user_id)
+-- Time Sessions Table (UPDATED with workspace)
 -- ============================================
 CREATE TABLE IF NOT EXISTS time_sessions (
   id TEXT PRIMARY KEY,
@@ -87,11 +154,14 @@ CREATE TABLE IF NOT EXISTS time_sessions (
   report_sent INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  workspace_id TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_time_sessions_user_id ON time_sessions(user_id);
 CREATE INDEX idx_time_sessions_clock_in ON time_sessions(clock_in);
+CREATE INDEX idx_time_sessions_workspace_id ON time_sessions(workspace_id);
 
 -- ============================================
 -- Integrations Table (UPDATED - per user)

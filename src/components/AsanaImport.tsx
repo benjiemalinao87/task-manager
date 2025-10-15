@@ -41,6 +41,7 @@ export function AsanaImport({ onClose, onTasksImported }: AsanaImportProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<'workspace' | 'project' | 'tasks' | 'import'>('workspace');
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
 
   useEffect(() => {
     loadAsanaIntegration();
@@ -178,6 +179,10 @@ export function AsanaImport({ onClose, onTasksImported }: AsanaImportProps) {
     return workspaces.find(w => w.gid === selectedWorkspace)?.name || '';
   };
 
+  const filteredProjects = projects.filter(project => 
+    project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+  );
+
   if (!asanaIntegration) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -290,16 +295,44 @@ export function AsanaImport({ onClose, onTasksImported }: AsanaImportProps) {
                   Select Project from {getSelectedWorkspaceName()}
                 </h3>
               </div>
-              <div className="space-y-3">
-                {projects.map((project) => (
-                  <button
-                    key={project.gid}
-                    onClick={() => handleProjectSelect(project.gid)}
-                    className="w-full p-4 text-left border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
-                  >
-                    <div className="font-medium text-gray-800">{project.name}</div>
-                  </button>
-                ))}
+
+              {/* Search Input */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={projectSearchQuery}
+                  onChange={(e) => setProjectSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {isLoading ? (
+                  // Skeleton loader
+                  <>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="w-full p-4 border border-gray-200 rounded-lg animate-pulse">
+                        <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                      </div>
+                    ))}
+                  </>
+                ) : filteredProjects.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    {projectSearchQuery ? `No projects found matching "${projectSearchQuery}"` : 'No projects found'}
+                  </div>
+                ) : (
+                  filteredProjects.map((project) => (
+                    <button
+                      key={project.gid}
+                      onClick={() => handleProjectSelect(project.gid)}
+                      className="w-full p-4 text-left border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                    >
+                      <div className="font-medium text-gray-800">{project.name}</div>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}

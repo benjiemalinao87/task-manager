@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Settings as SettingsIcon, LogOut, CheckSquare } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Settings as SettingsIcon, LogOut, CheckSquare, LayoutDashboard, Download, Users, BarChart3 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { NotificationPreferences } from './components/onboarding/NotificationPreferences';
 import { SimpleSettings } from './components/SimpleSettings';
 import { Integrations } from './components/Integrations';
+import { AsanaImport } from './components/AsanaImport';
 import { ClockInOut } from './components/ClockInOut';
 import { TaskForm } from './components/TaskForm';
 import { TaskList } from './components/TaskList';
@@ -16,17 +18,25 @@ import { CalendarView } from './components/CalendarView';
 import { TabNavigation } from './components/TabNavigation';
 import { TaskDetailView } from './components/TaskDetailView';
 import { Invoices } from './components/Invoices';
+import { TeamDashboard } from './components/TeamDashboard';
+import { TeamManagement } from './components/TeamManagement';
+import { TimeReports } from './components/TimeReports';
+import { WorkspaceSwitcher } from './components/WorkspaceSwitcher';
 
 function TaskManager() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
+  const [showAsanaImport, setShowAsanaImport] = useState(false);
   const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar' | 'invoices'>('manager');
   const [invoiceModuleEnabled, setInvoiceModuleEnabled] = useState(false);
+  const [hasAsanaIntegration, setHasAsanaIntegration] = useState(false);
 
   useEffect(() => {
     loadSettings();
+    checkAsanaIntegration();
   }, []);
 
   const loadSettings = async () => {
@@ -35,6 +45,16 @@ function TaskManager() {
       setInvoiceModuleEnabled(!!settings.invoice_module_enabled);
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const checkAsanaIntegration = async () => {
+    try {
+      const integration = await apiClient.getIntegration('asana');
+      setHasAsanaIntegration(!!(integration && integration.is_active && integration.api_key));
+    } catch (error) {
+      console.error('Error checking Asana integration:', error);
+      setHasAsanaIntegration(false);
     }
   };
 
@@ -78,6 +98,15 @@ function TaskManager() {
               <span className="text-gray-400 mr-2">👤</span>
               <span className="font-medium">{user?.name || user?.email}</span>
             </div>
+            {hasAsanaIntegration && (
+              <button
+                onClick={() => setShowAsanaImport(true)}
+                className="p-2.5 text-gray-600 hover:text-purple-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
+                title="Import from Asana"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            )}
             <button
               onClick={() => setShowSettings(true)}
               className="p-2.5 text-gray-600 hover:text-gray-800 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
@@ -135,6 +164,15 @@ function TaskManager() {
         />
       )}
       {showIntegrations && <Integrations onClose={() => setShowIntegrations(false)} />}
+      {showAsanaImport && (
+        <AsanaImport 
+          onClose={() => setShowAsanaImport(false)} 
+          onTasksImported={() => {
+            setRefreshTrigger(prev => prev + 1);
+            setShowAsanaImport(false);
+          }} 
+        />
+      )}
     </div>
   );
 }
@@ -169,6 +207,9 @@ function AppContent() {
     <Routes>
       <Route path="/" element={<TaskManager />} />
       <Route path="/task/:taskId" element={<TaskDetailView />} />
+      <Route path="/team-dashboard" element={<TeamDashboard />} />
+      <Route path="/team-management" element={<TeamManagement />} />
+      <Route path="/time-reports" element={<TimeReports />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -178,7 +219,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent />
+        <WorkspaceProvider>
+          <AppContent />
+        </WorkspaceProvider>
       </AuthProvider>
     </BrowserRouter>
   );

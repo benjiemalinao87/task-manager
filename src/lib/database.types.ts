@@ -9,6 +9,93 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      workspaces: {
+        Row: {
+          id: string
+          name: string
+          owner_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          owner_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          owner_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      workspace_members: {
+        Row: {
+          id: string
+          workspace_id: string
+          user_id: string
+          role: 'owner' | 'admin' | 'member'
+          invited_by: string | null
+          joined_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          user_id: string
+          role?: 'owner' | 'admin' | 'member'
+          invited_by?: string | null
+          joined_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          user_id?: string
+          role?: 'owner' | 'admin' | 'member'
+          invited_by?: string | null
+          joined_at?: string
+          created_at?: string
+        }
+      }
+      workspace_invitations: {
+        Row: {
+          id: string
+          workspace_id: string
+          email: string
+          role: 'admin' | 'member'
+          invited_by: string
+          token: string
+          status: 'pending' | 'accepted' | 'declined' | 'expired'
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          email: string
+          role?: 'admin' | 'member'
+          invited_by: string
+          token: string
+          status?: 'pending' | 'accepted' | 'declined' | 'expired'
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          email?: string
+          role?: 'admin' | 'member'
+          invited_by?: string
+          token?: string
+          status?: 'pending' | 'accepted' | 'declined' | 'expired'
+          expires_at?: string
+          created_at?: string
+        }
+      }
       integrations: {
         Row: {
           id: string
@@ -41,6 +128,7 @@ export interface Database {
       tasks: {
         Row: {
           id: string
+          user_id: string
           task_name: string
           description: string
           estimated_time: string
@@ -54,9 +142,15 @@ export interface Database {
           created_at: string
           updated_at: string
           asana_task_id: string | null
+          priority: 'low' | 'medium' | 'high' | 'urgent'
+          workspace_id: string | null
+          assigned_to: string | null
+          assigned_by: string | null
+          assigned_at: string | null
         }
         Insert: {
           id?: string
+          user_id: string
           task_name: string
           description: string
           estimated_time: string
@@ -70,9 +164,15 @@ export interface Database {
           created_at?: string
           updated_at?: string
           asana_task_id?: string | null
+          priority?: 'low' | 'medium' | 'high' | 'urgent'
+          workspace_id?: string | null
+          assigned_to?: string | null
+          assigned_by?: string | null
+          assigned_at?: string | null
         }
         Update: {
           id?: string
+          user_id?: string
           task_name?: string
           description?: string
           estimated_time?: string
@@ -86,6 +186,11 @@ export interface Database {
           created_at?: string
           updated_at?: string
           asana_task_id?: string | null
+          priority?: 'low' | 'medium' | 'high' | 'urgent'
+          workspace_id?: string | null
+          assigned_to?: string | null
+          assigned_by?: string | null
+          assigned_at?: string | null
         }
       }
       settings: {
@@ -114,30 +219,36 @@ export interface Database {
       time_sessions: {
         Row: {
           id: string
+          user_id: string
           clock_in: string
           clock_out: string | null
           duration_minutes: number | null
           report_sent: boolean
           created_at: string
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           id?: string
+          user_id: string
           clock_in?: string
           clock_out?: string | null
           duration_minutes?: number | null
           report_sent?: boolean
           created_at?: string
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           id?: string
+          user_id?: string
           clock_in?: string
           clock_out?: string | null
           duration_minutes?: number | null
           report_sent?: boolean
           created_at?: string
           updated_at?: string
+          workspace_id?: string | null
         }
       }
       invoices: {

@@ -8,7 +8,30 @@ export default {
   async queue(batch: MessageBatch<EmailMessage>, env: Env): Promise<void> {
     for (const message of batch.messages) {
       try {
-        const { type, userId, email, task } = message.body;
+        const { type, userId, email, task, to, data } = message.body;
+
+        // Handle workspace invitations separately (they don't have userId)
+        if (type === 'workspace_invitation') {
+          const emailHtml = buildWorkspaceInvitationEmail(data);
+          const subject = `You're invited to join ${data.workspace_name} on Workoto`;
+
+          const emailSent = await sendViaResend(
+            [to || data.email],
+            subject,
+            emailHtml,
+            env.RESEND_API_KEY,
+            DEFAULT_FROM_EMAIL,
+            DEFAULT_FROM_NAME
+          );
+
+          if (emailSent) {
+            console.log(`Workspace invitation email sent to ${to || data.email}`);
+            message.ack();
+          } else {
+            throw new Error('Failed to send workspace invitation email');
+          }
+          continue;
+        }
 
         // Get user's name from the database
         const user = await env.DB.prepare(`
@@ -989,6 +1012,207 @@ function buildDailyReportEmail(session: any, tasks: any[], userName: string): st
     <div class="footer">
       <p style="margin: 0;">This is an automated daily report from Task Manager.</p>
       <p style="margin: 8px 0 0 0; color: #9ca3af;">Generated on ${new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' })}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function buildWorkspaceInvitationEmail(data: any): string {
+  const { workspace_name, inviter_name, role, invitation_link, expires_at } = data;
+
+  const expiresDate = new Date(expires_at);
+  const expiresFormatted = expiresDate.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background-color: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      color: white;
+      padding: 50px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 36px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header p {
+      margin: 12px 0 0 0;
+      font-size: 18px;
+      opacity: 0.95;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .invitation-box {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+      text-align: center;
+    }
+    .workspace-name {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 16px 0;
+    }
+    .inviter-text {
+      font-size: 16px;
+      color: #6b7280;
+      margin: 8px 0;
+    }
+    .role-badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 16px 0;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      padding: 16px 40px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 600;
+      margin: 24px 0;
+      box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+      transition: transform 0.2s;
+    }
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(59, 130, 246, 0.4);
+    }
+    .expiry-notice {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 24px 0;
+    }
+    .expiry-notice strong {
+      color: #92400e;
+      font-size: 14px;
+    }
+    .expiry-notice p {
+      margin: 8px 0 0 0;
+      color: #78350f;
+      font-size: 14px;
+    }
+    .features-list {
+      background: #f0fdf4;
+      border-radius: 8px;
+      padding: 24px;
+      margin: 24px 0;
+      text-align: left;
+    }
+    .features-list h3 {
+      margin: 0 0 16px 0;
+      color: #065f46;
+      font-size: 16px;
+    }
+    .features-list ul {
+      margin: 0;
+      padding-left: 24px;
+      color: #047857;
+    }
+    .features-list li {
+      margin: 8px 0;
+    }
+    .footer {
+      text-align: center;
+      padding: 30px;
+      color: #6b7280;
+      font-size: 13px;
+      background: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">🎉</div>
+      <h1>You're Invited!</h1>
+      <p>Join your team on Workoto</p>
+    </div>
+
+    <div class="content">
+      <div class="invitation-box">
+        <p style="font-size: 16px; color: #6b7280; margin: 0;">You've been invited to join</p>
+        <div class="workspace-name">${workspace_name}</div>
+        <p class="inviter-text">Invited by <strong>${inviter_name || 'a team member'}</strong></p>
+        <div class="role-badge">Role: ${role}</div>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="${invitation_link}" class="cta-button">Accept Invitation</a>
+      </div>
+
+      <div class="expiry-notice">
+        <strong>⏰ Time Sensitive</strong>
+        <p>This invitation expires on ${expiresFormatted}. Accept soon to join your team!</p>
+      </div>
+
+      <div class="features-list">
+        <h3>🚀 What you can do in Workoto:</h3>
+        <ul>
+          <li>Collaborate on tasks with your team</li>
+          <li>Track time and generate reports</li>
+          <li>Assign and manage tasks across the workspace</li>
+          <li>View team dashboard and analytics</li>
+          <li>Import tasks from Asana and other integrations</li>
+        </ul>
+      </div>
+
+      <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin-top: 24px; text-align: center;">
+        <p style="margin: 0; color: #6b7280; font-size: 14px;">
+          If you don't want to accept this invitation, you can safely ignore this email.
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p style="margin: 0;">This is an invitation from Workoto Task Manager</p>
+      <p style="margin: 8px 0 0 0; color: #9ca3af;">Organize your team, track your progress!</p>
     </div>
   </div>
 </body>
