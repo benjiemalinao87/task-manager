@@ -1,5 +1,71 @@
 # Lessons Learned
 
+## Email Invitation Links - Wrong Domain (October 15, 2025)
+
+### Issue: Invitation Email Links Point to Non-Existent Domain
+**Problem**: Invitation emails were sent successfully and looked great, but clicking "Accept Invitation" button led to `app.workoto.com` which gives `DNS_PROBE_FINISHED_NXDOMAIN` error because the domain doesn't exist yet.
+
+**Root Cause**: 
+- Invitation email template uses `c.env.FRONTEND_URL || 'https://app.workoto.com'` for the invitation link
+- `FRONTEND_URL` environment variable was **not configured** in `wrangler.toml`
+- Fell back to hardcoded `app.workoto.com` domain
+- For development, needs to point to `http://localhost:5173`
+
+**How To Detect**:
+```typescript
+// invitations.ts line 110
+invitation_link: `${c.env.FRONTEND_URL || 'https://app.workoto.com'}/accept-invitation?token=${token}`
+
+// When clicking email link:
+https://app.workoto.com/accept-invitation?token=fcdd7f2...
+→ DNS_PROBE_FINISHED_NXDOMAIN (domain doesn't exist)
+```
+
+**Solution**:
+Added `FRONTEND_URL` to `wrangler.toml` for both environments:
+
+```toml
+# Development environment
+[env.development.vars]
+FRONTEND_URL = "http://localhost:5173"
+
+# Production environment
+[env.production.vars]
+FRONTEND_URL = "https://app.workoto.com"
+```
+
+**Result**:
+- ✅ Development invitation emails now link to `http://localhost:5173/accept-invitation?token=...`
+- ✅ New users can click email button and land on local dev server
+- ✅ Production will use actual domain when deployed
+- ✅ Environment-specific URLs work correctly
+
+**Key Learning**: 
+- **Always configure environment-specific URLs** - Don't hardcode production URLs as fallbacks
+- **Email links need to match your deployment** - Development emails should go to localhost
+- **Test the full flow** - Send invitation, check email, click link, verify it works
+- **Environment variables in wrangler.toml** - Use `[env.X.vars]` for non-secret config
+
+**Testing Checklist**:
+1. ✅ Send invitation to new user (no existing account)
+2. ✅ Check email arrives with correct branding
+3. ✅ Click "Accept Invitation" button
+4. ✅ Verify it lands on correct domain (localhost for dev, production domain for prod)
+5. ✅ User can create account and accept invitation
+
+**Don't Do This**:
+❌ Hardcode production URLs as fallback defaults
+❌ Use same URL for all environments
+❌ Forget to redeploy after changing wrangler.toml
+❌ Only test the "email sent" part without clicking links
+
+**Do This Instead**:
+✅ Configure FRONTEND_URL for each environment
+✅ Use `c.env.FRONTEND_URL` without fallback (or fallback to localhost)
+✅ Test the complete flow from email click to acceptance
+✅ Redeploy worker after changing environment variables
+✅ Document required environment variables
+
 ## Task Assignment - HTTP Method Mismatch (October 15, 2025)
 
 ### Issue: 404 Error When Assigning Tasks from Team Dashboard

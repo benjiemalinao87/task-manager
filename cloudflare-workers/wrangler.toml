@@ -12,6 +12,10 @@ compatibility_flags = ["nodejs_compat"]
 [env.development]
 name = "task-manager-api-dev"
 
+# Frontend URL for email links
+[env.development.vars]
+FRONTEND_URL = "http://localhost:5173"
+
 # Custom domain (must be added via Cloudflare Dashboard):
 # Go to: Workers & Pages → task-manager-api-dev → Settings → Domains & Routes
 # Add custom domain: api.workoto.app
@@ -56,6 +60,10 @@ max_retries = 2
 # ===================================
 [env.production]
 name = "task-manager-api"
+
+# Frontend URL for email links
+[env.production.vars]
+FRONTEND_URL = "https://www.workoto.app"
 
 # NOTE: Run these commands for production:
 # 1. wrangler d1 create task-manager-prod

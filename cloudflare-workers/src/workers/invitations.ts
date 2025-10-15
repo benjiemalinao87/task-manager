@@ -107,7 +107,7 @@ invitations.post('/:workspaceId/invitations', async (c) => {
           inviter_name: inviter?.name || inviter?.email || 'A team member',
           role: role,
           invitation_token: token,
-          invitation_link: `${c.env.FRONTEND_URL || 'https://app.workoto.com'}/accept-invitation?token=${token}`,
+          invitation_link: `${c.env.FRONTEND_URL || 'https://www.workoto.app'}/accept-invitation?token=${token}`,
           expires_at: expiresAt
         }
       });
