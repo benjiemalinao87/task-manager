@@ -1516,3 +1516,127 @@ WHERE workspace_id = ?
 - Task statistics/reports
 - Calendar view
 - Any other task listing endpoints
+
+## Member Role - Dashboard/Reports Access Control (October 16, 2025)
+
+### Issue: Members Could Access Team Dashboard and Reports (UI/UX Issue)
+**Problem**: Members could navigate to `/team-dashboard` and `/time-reports`, which triggered 403 errors showing "Failed to load dashboard data" with no helpful error message. Members don't need these management views.
+
+**Root Cause**: 
+- No role-based UI restrictions on navigation links
+- No redirect logic in Dashboard and Reports components
+- Generic error messages didn't explain why access was denied
+- Members saw navigation links for pages they couldn't access
+
+**User Experience Problems**:
+- 🚨 Members saw "Dashboard" and "Reports" links in navigation
+- 🚨 Clicking them showed generic "Failed to load dashboard data" error
+- 🚨 No explanation about why they couldn't access it
+- 🚨 Poor UX - showing links that don't work
+
+**Solution**:
+
+**1. Hide Navigation Links for Members** (`TeamNavigation.tsx`):
+```typescript
+// Check if user is owner or admin
+const canViewReports = currentWorkspace?.role === 'owner' || currentWorkspace?.role === 'admin';
+
+// Conditionally render Dashboard and Reports links
+{canViewReports && (
+  <button onClick={() => navigate('/team-dashboard')}>
+    📊 Dashboard
+  </button>
+)}
+
+{canViewReports && (
+  <button onClick={() => navigate('/time-reports')}>
+    ⏱️ Reports
+  </button>
+)}
+
+// Team link always visible (all roles can see team members)
+<button onClick={() => navigate('/team-management')}>
+  👥 Team
+</button>
+```
+
+**2. Auto-Redirect Members** (`TeamDashboard.tsx` and `TimeReports.tsx`):
+```typescript
+const navigate = useNavigate();
+
+useEffect(() => {
+  if (currentWorkspace && currentWorkspace.role === 'member') {
+    console.log('Team Dashboard is only available for owners and admins. Redirecting member to tasks page...');
+    navigate('/');
+  }
+}, [currentWorkspace, navigate]);
+```
+
+**3. Improved Error Messages**:
+```typescript
+// Before (generic)
+catch (err) {
+  setError('Failed to load dashboard data');
+}
+
+// After (specific)
+catch (err: any) {
+  if (err.message?.includes('Permission denied')) {
+    setError('Access denied. This dashboard is only available for workspace owners and admins.');
+  } else if (err.message?.includes('404')) {
+    setError('Dashboard data not found. Please try refreshing the page.');
+  } else {
+    setError(`Unable to load dashboard: ${err.message || 'Unknown error'}`);
+  }
+}
+```
+
+**UI Behavior Now**:
+```
+👑 Owner Navigation:   [Back to Tasks] [📊 Dashboard] [👥 Team] [⏱️ Reports]
+🛡️  Admin Navigation:   [Back to Tasks] [📊 Dashboard] [👥 Team] [⏱️ Reports]
+👤 Member Navigation:  [Back to Tasks] [👥 Team]
+```
+
+**What Happens When Member Tries to Access**:
+1. **Via URL** (`/team-dashboard`, `/time-reports`): Automatically redirected to `/` (main tasks)
+2. **Via Navigation**: Links are hidden - can't click them
+3. **Console Message**: Clear log explaining redirect reason
+
+**Result**:
+- ✅ Members only see navigation links they can actually use
+- ✅ Auto-redirect prevents access to management pages
+- ✅ Clear console messages for debugging
+- ✅ Specific error messages if API calls fail
+- ✅ Clean UX - no broken/inaccessible links
+
+**Key Learning**: 
+- **Hide UI elements users can't access** - Don't show navigation links for restricted pages
+- **Auto-redirect unauthorized users** - Prevent frustration from seeing errors
+- **Provide helpful error messages** - Explain WHY access is denied, not just "failed"
+- **Role-based UI rendering** - Use role checks to conditionally show/hide features
+- **Test with all user roles** - Verify each role sees appropriate UI
+
+**Navigation Access Matrix**:
+```
+Page                Owner   Admin   Member
+-------------------------------------------
+/                   ✅      ✅      ✅
+/team-dashboard     ✅      ✅      ❌ (redirected)
+/team-management    ✅      ✅      ✅ (view only)
+/time-reports       ✅      ✅      ❌ (redirected)
+```
+
+**Don't Do This**:
+❌ Show navigation links to pages users can't access
+❌ Display generic "Failed to load" errors
+❌ Let members navigate to management pages only to see errors
+❌ Forget to add role checks to navigation components
+
+**Do This Instead**:
+✅ Conditionally render navigation links based on user role
+✅ Auto-redirect unauthorized users to appropriate pages
+✅ Provide specific, helpful error messages
+✅ Use console.log to explain redirect reasons (for debugging)
+✅ Test navigation and access with each user role
+✅ Separate management features (Dashboard/Reports) from general features (Team)

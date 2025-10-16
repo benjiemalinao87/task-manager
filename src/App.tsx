@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon, LogOut, CheckSquare, LayoutDashboard, Download, Users, BarChart3 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { WorkspaceProvider } from './context/WorkspaceContext';
+import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
 import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
@@ -27,6 +27,7 @@ import { AcceptInvitation } from './components/AcceptInvitation';
 
 function TaskManager() {
   const { user, logout } = useAuth();
+  const { currentWorkspace } = useWorkspace();
   const navigate = useNavigate();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -35,6 +36,9 @@ function TaskManager() {
   const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar' | 'invoices'>('manager');
   const [invoiceModuleEnabled, setInvoiceModuleEnabled] = useState(false);
   const [hasAsanaIntegration, setHasAsanaIntegration] = useState(false);
+  
+  // Check if user can view team features (owners and admins only)
+  const canViewTeamFeatures = currentWorkspace?.role === 'owner' || currentWorkspace?.role === 'admin';
 
   useEffect(() => {
     loadSettings();
@@ -100,6 +104,15 @@ function TaskManager() {
               <span className="text-gray-400 mr-2">👤</span>
               <span className="font-medium">{user?.name || user?.email}</span>
             </div>
+            {canViewTeamFeatures && (
+              <button
+                onClick={() => navigate('/team-dashboard')}
+                className="p-2.5 text-gray-600 hover:text-blue-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
+                title="Team Dashboard"
+              >
+                <BarChart3 className="w-5 h-5" />
+              </button>
+            )}
             {hasAsanaIntegration && (
               <button
                 onClick={() => setShowAsanaImport(true)}
