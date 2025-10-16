@@ -291,6 +291,66 @@ workspaces.get('/:id/members', async (c) => {
 });
 
 // ============================================
+// PATCH /api/workspaces/:id/members/:userId/role - Update member role
+// ============================================
+workspaces.patch('/:id/members/:userId/role', async (c) => {
+  const auth = await requireAuth(c.req.raw, c.env);
+  if (auth instanceof Response) return auth;
+
+  const workspaceId = c.req.param('id');
+  const userIdToUpdate = c.req.param('userId');
+
+  try {
+    // Check if requester is owner
+    const requesterMembership = await c.env.DB.prepare(`
+      SELECT role FROM workspace_members
+      WHERE workspace_id = ? AND user_id = ?
+    `).bind(workspaceId, auth.userId).first<{ role: string }>();
+
+    if (!requesterMembership || requesterMembership.role !== 'owner') {
+      return c.json({ error: 'Permission denied. Only workspace owner can change member roles' }, 403);
+    }
+
+    const body = await c.req.json<{ role: string }>();
+
+    if (!body.role || (body.role !== 'admin' && body.role !== 'member')) {
+      return c.json({ error: 'Invalid role. Must be either "admin" or "member"' }, 400);
+    }
+
+    // Check if trying to change the owner's role
+    const memberToUpdate = await c.env.DB.prepare(`
+      SELECT role FROM workspace_members
+      WHERE workspace_id = ? AND user_id = ?
+    `).bind(workspaceId, userIdToUpdate).first<{ role: string }>();
+
+    if (!memberToUpdate) {
+      return c.json({ error: 'Member not found' }, 404);
+    }
+
+    if (memberToUpdate.role === 'owner') {
+      return c.json({ error: 'Cannot change workspace owner role' }, 400);
+    }
+
+    // Update member role
+    await c.env.DB.prepare(`
+      UPDATE workspace_members
+      SET role = ?
+      WHERE workspace_id = ? AND user_id = ?
+    `).bind(body.role, workspaceId, userIdToUpdate).run();
+
+    return c.json({ 
+      success: true, 
+      message: `Member role updated to ${body.role} successfully`,
+      role: body.role
+    });
+
+  } catch (error) {
+    console.error('Update member role error:', error);
+    return c.json({ error: 'Failed to update member role' }, 500);
+  }
+});
+
+// ============================================
 // DELETE /api/workspaces/:id/members/:userId - Remove member
 // ============================================
 workspaces.delete('/:id/members/:userId', async (c) => {

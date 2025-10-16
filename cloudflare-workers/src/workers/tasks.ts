@@ -37,7 +37,8 @@ tasks.get('/', async (c) => {
 
     const bindings: any[] = [];
 
-    // Workspace filter
+    // Workspace filter with role-based permissions
+    let userRole = null;
     if (workspaceId) {
       // Verify user has access to this workspace
       const membership = await c.env.DB.prepare(`
@@ -49,13 +50,37 @@ tasks.get('/', async (c) => {
         return c.json({ error: 'Workspace not found or access denied' }, 404);
       }
 
+      userRole = membership.role;
       query += ` AND t.workspace_id = ?`;
       bindings.push(workspaceId);
+
+      // Role-based filtering: Members only see tasks assigned to them or created by them
+      if (userRole === 'member') {
+        query += ` AND (t.assigned_to = ? OR t.user_id = ?)`;
+        bindings.push(auth.userId);
+        bindings.push(auth.userId);
+      }
+      // Admins and Owners see all workspace tasks (no additional filter needed)
     } else {
       // Default: show tasks from user's workspaces only
       query += ` AND t.workspace_id IN (
         SELECT workspace_id FROM workspace_members WHERE user_id = ?
       )`;
+      bindings.push(auth.userId);
+      
+      // For default view, also apply member restriction
+      query += ` AND (
+        EXISTS (
+          SELECT 1 FROM workspace_members wm 
+          WHERE wm.workspace_id = t.workspace_id 
+          AND wm.user_id = ? 
+          AND wm.role IN ('owner', 'admin')
+        )
+        OR t.assigned_to = ?
+        OR t.user_id = ?
+      )`;
+      bindings.push(auth.userId);
+      bindings.push(auth.userId);
       bindings.push(auth.userId);
     }
 

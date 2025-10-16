@@ -339,6 +339,13 @@ class ApiClient {
     );
   }
 
+  async updateWorkspaceMemberRole(workspaceId: string, userId: string, role: 'admin' | 'member') {
+    return this.patch<{ success: boolean; message: string; role: string }>(
+      `/api/workspaces/${workspaceId}/members/${userId}/role`,
+      { role }
+    );
+  }
+
   // Invitation methods
   async inviteToWorkspace(workspaceId: string, data: { email: string; role?: 'admin' | 'member' }) {
     return this.post<{ invitation: any }>(`/api/workspaces/${workspaceId}/invitations`, data);

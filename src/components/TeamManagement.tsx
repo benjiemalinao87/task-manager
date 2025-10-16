@@ -41,6 +41,7 @@ export function TeamManagement() {
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [cancellingInviteId, setCancellingInviteId] = useState<string | null>(null);
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -129,6 +130,22 @@ export function TeamManagement() {
     }
   };
 
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'member', memberName: string) => {
+    if (!currentWorkspace) return;
+    
+    setUpdatingRoleUserId(userId);
+    try {
+      await apiClient.updateWorkspaceMemberRole(currentWorkspace.id, userId, newRole);
+      alert(`${memberName}'s role has been updated to ${newRole}.`);
+      await loadTeamData();
+    } catch (error: any) {
+      console.error('Error updating member role:', error);
+      alert(error.message || 'Failed to update member role. Please try again.');
+    } finally {
+      setUpdatingRoleUserId(null);
+    }
+  };
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
@@ -178,6 +195,7 @@ export function TeamManagement() {
   };
 
   const canManageTeam = currentWorkspace?.role === 'owner' || currentWorkspace?.role === 'admin';
+  const isOwner = currentWorkspace?.role === 'owner';
 
   if (!currentWorkspace) {
     return (
@@ -341,10 +359,44 @@ export function TeamManagement() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-bold border ${getRoleBadge(member.role)}`}>
-                  {getRoleIcon(member.role)}
-                  {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                </span>
+                {/* Show dropdown for owner to change roles, otherwise show static badge */}
+                {isOwner && member.role !== 'owner' ? (
+                  <Select
+                    value={member.role}
+                    onValueChange={(value) => handleRoleChange(member.user_id, value as 'admin' | 'member', member.name || member.email)}
+                    disabled={updatingRoleUserId === member.user_id}
+                  >
+                    <SelectTrigger className={`w-[140px] h-[44px] px-4 border-2 rounded-xl font-bold ${getRoleBadge(member.role)} hover:opacity-80 transition-all disabled:opacity-50`}>
+                      <div className="flex items-center gap-2">
+                        {updatingRoleUserId === member.user_id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          getRoleIcon(member.role)
+                        )}
+                        <SelectValue />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin" className="cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium">Admin</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="member" className="cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-gray-600" />
+                          <span className="font-medium">Member</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-bold border ${getRoleBadge(member.role)}`}>
+                    {getRoleIcon(member.role)}
+                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                  </span>
+                )}
                 {canManageTeam && member.role !== 'owner' && (
                   <button
                     onClick={() => handleRemoveMember(member.user_id, member.name || member.email)}

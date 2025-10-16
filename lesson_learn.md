@@ -1,5 +1,95 @@
 # Lessons Learned
 
+## New User Signup - No Default Workspace Created (October 15, 2025)
+
+### Issue: "No workspace found" Error When New User Creates Task
+**Problem**: New user TEST11 signed up successfully, but when trying to create a task, got error: "No workspace found. Please create or join a workspace first."
+
+**Root Cause**: 
+- Signup endpoint only created user and settings
+- Did NOT create a default workspace for new users
+- Workspaces only existed when users were invited by others
+- New solo users couldn't use the app without being invited first
+
+**How To Detect**:
+```typescript
+// Signup was doing:
+1. Create user
+2. Create settings
+// ❌ Missing: Create workspace!
+
+// Task creation fails:
+Error: No workspace found. Please create or join a workspace first.
+```
+
+**Solution**:
+Added automatic workspace creation in signup endpoint:
+
+```typescript
+// After creating user and settings
+// Create default workspace for new user
+const workspaceId = generateId();
+const workspaceName = name ? `${name}'s Workspace` : 'My Workspace';
+
+await c.env.DB.prepare(`
+  INSERT INTO workspaces (id, name, owner_id, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?)
+`).bind(workspaceId, workspaceName, userId, now, now).run();
+
+// Add user as owner of the workspace
+await c.env.DB.prepare(`
+  INSERT INTO workspace_members (id, workspace_id, user_id, role, joined_at)
+  VALUES (?, ?, ?, ?, ?)
+`).bind(generateId(), workspaceId, userId, 'owner', now).run();
+```
+
+**Key Features**:
+- ✅ **Personal workspace name**: "{Name}'s Workspace" or "My Workspace"
+- ✅ **User is owner**: Full control over their workspace
+- ✅ **Automatic**: No manual setup required
+- ✅ **Immediate productivity**: Can create tasks right after signup
+
+**Result**:
+- ✅ New users get their own workspace automatically
+- ✅ Can create tasks immediately after signup
+- ✅ No need to wait for invitation
+- ✅ User is owner with full permissions
+
+**Key Learning**: 
+- **Every user needs a workspace** - Core requirement for multi-tenant SaaS
+- **Minimize onboarding friction** - Auto-create essential resources
+- **Test the complete signup flow** - Don't stop at "user created", test actual usage
+- **Handle existing users** - Need migration/fix for users who signed up before this fix
+
+**Database Column Gotcha**:
+- Initial code used `created_by` but schema has `owner_id`
+- Always check actual schema before writing INSERT queries
+- Use `PRAGMA table_info(table_name)` to verify columns
+
+**Don't Do This**:
+❌ Require manual workspace creation after signup
+❌ Leave new users stranded without workspaces
+❌ Assume column names without checking schema
+❌ Only test "user created", not "user can use app"
+
+**Do This Instead**:
+✅ Auto-create all required resources at signup
+✅ Test the complete user journey from signup → first action
+✅ Verify database schema before writing queries
+✅ Handle existing users who signed up before the fix
+✅ Make onboarding smooth and automatic
+
+**Fixing Existing Users**:
+```sql
+-- Create workspace for existing user
+INSERT INTO workspaces (id, name, owner_id, created_at, updated_at)
+VALUES ('ws_id', "User's Workspace", 'user_id', datetime('now'), datetime('now'));
+
+-- Add as owner
+INSERT INTO workspace_members (id, workspace_id, user_id, role, joined_at)
+VALUES ('wm_id', 'ws_id', 'user_id', 'owner', datetime('now'));
+```
+
 ## Update/Complete Task Endpoint - PATCH Missing (October 15, 2025)
 
 ### Issue: 404 Error When Completing/Updating Tasks
@@ -1059,3 +1149,370 @@ npx wrangler deploy
   <ActualContent />
 )}
 ```
+
+## Workspace Member Role Management (October 16, 2025)
+
+### Issue: No Way for Workspace Owners to Change Member Roles
+**Problem**: Workspace owners couldn't change member roles from admin to member or vice versa. Members were stuck with the role they were invited with, requiring removal and re-invitation to change roles.
+
+**Root Cause**: 
+- Backend had no endpoint to update member roles
+- Frontend TeamManagement component showed static role badges with no edit functionality
+- Only way to change roles was to remove member and send new invitation with different role
+
+**What Was Missing**:
+- ❌ No API endpoint for updating workspace member roles
+- ❌ No UI for owners to change member roles
+- ❌ No permission checks for role changes
+- ❌ Static role display with no interaction
+
+**Solution**:
+
+1. **Added Backend API Endpoint** (`cloudflare-workers/src/workers/workspaces.ts`):
+   ```typescript
+   // PATCH /api/workspaces/:id/members/:userId/role
+   workspaces.patch('/:id/members/:userId/role', async (c) => {
+     const auth = await requireAuth(c.req.raw, c.env);
+     const workspaceId = c.req.param('id');
+     const userIdToUpdate = c.req.param('userId');
+     
+     // Only workspace owner can change roles
+     const requesterMembership = await c.env.DB.prepare(`
+       SELECT role FROM workspace_members
+       WHERE workspace_id = ? AND user_id = ?
+     `).bind(workspaceId, auth.userId).first<{ role: string }>();
+
+     if (!requesterMembership || requesterMembership.role !== 'owner') {
+       return c.json({ error: 'Permission denied. Only workspace owner can change member roles' }, 403);
+     }
+
+     const body = await c.req.json<{ role: string }>();
+
+     if (!body.role || (body.role !== 'admin' && body.role !== 'member')) {
+       return c.json({ error: 'Invalid role. Must be either "admin" or "member"' }, 400);
+     }
+
+     // Cannot change owner role
+     const memberToUpdate = await c.env.DB.prepare(`
+       SELECT role FROM workspace_members
+       WHERE workspace_id = ? AND user_id = ?
+     `).bind(workspaceId, userIdToUpdate).first<{ role: string }>();
+
+     if (memberToUpdate.role === 'owner') {
+       return c.json({ error: 'Cannot change workspace owner role' }, 400);
+     }
+
+     // Update member role
+     await c.env.DB.prepare(`
+       UPDATE workspace_members
+       SET role = ?
+       WHERE workspace_id = ? AND user_id = ?
+     `).bind(body.role, workspaceId, userIdToUpdate).run();
+
+     return c.json({ 
+       success: true, 
+       message: `Member role updated to ${body.role} successfully`,
+       role: body.role
+     });
+   });
+   ```
+
+2. **Added API Client Method** (`src/lib/api-client.ts`):
+   ```typescript
+   async updateWorkspaceMemberRole(workspaceId: string, userId: string, role: 'admin' | 'member') {
+     return this.patch<{ success: boolean; message: string; role: string }>(
+       `/api/workspaces/${workspaceId}/members/${userId}/role`,
+       { role }
+     );
+   }
+   ```
+
+3. **Updated Frontend Component** (`src/components/TeamManagement.tsx`):
+   - Added `updatingRoleUserId` state to track loading
+   - Added `isOwner` check to determine permissions
+   - Created `handleRoleChange` function:
+     ```typescript
+     const handleRoleChange = async (userId: string, newRole: 'admin' | 'member', memberName: string) => {
+       if (!currentWorkspace) return;
+       
+       setUpdatingRoleUserId(userId);
+       try {
+         await apiClient.updateWorkspaceMemberRole(currentWorkspace.id, userId, newRole);
+         alert(`${memberName}'s role has been updated to ${newRole}.`);
+         await loadTeamData();
+       } catch (error: any) {
+         console.error('Error updating member role:', error);
+         alert(error.message || 'Failed to update member role. Please try again.');
+       } finally {
+         setUpdatingRoleUserId(null);
+       }
+     };
+     ```
+
+4. **Updated UI with Role Dropdown**:
+   ```typescript
+   {isOwner && member.role !== 'owner' ? (
+     <Select
+       value={member.role}
+       onValueChange={(value) => handleRoleChange(member.user_id, value as 'admin' | 'member', member.name || member.email)}
+       disabled={updatingRoleUserId === member.user_id}
+     >
+       <SelectTrigger className={`w-[140px] h-[44px] px-4 border-2 rounded-xl font-bold ${getRoleBadge(member.role)} hover:opacity-80 transition-all disabled:opacity-50`}>
+         <div className="flex items-center gap-2">
+           {updatingRoleUserId === member.user_id ? (
+             <Loader2 className="w-4 h-4 animate-spin" />
+           ) : (
+             getRoleIcon(member.role)
+           )}
+           <SelectValue />
+         </div>
+       </SelectTrigger>
+       <SelectContent>
+         <SelectItem value="admin">
+           <div className="flex items-center gap-2">
+             <Shield className="w-4 h-4 text-blue-600" />
+             <span className="font-medium">Admin</span>
+           </div>
+         </SelectItem>
+         <SelectItem value="member">
+           <div className="flex items-center gap-2">
+             <Users className="w-4 h-4 text-gray-600" />
+             <span className="font-medium">Member</span>
+           </div>
+         </SelectItem>
+       </SelectContent>
+     </Select>
+   ) : (
+     <span className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl font-bold border ${getRoleBadge(member.role)}`}>
+       {getRoleIcon(member.role)}
+       {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+     </span>
+   )}
+   ```
+
+**Key Features**:
+- ✅ **Owner-only permission** - Only workspace owners can change roles
+- ✅ **Inline role editing** - Dropdown appears directly in member list
+- ✅ **Two roles supported** - Can switch between 'admin' and 'member'
+- ✅ **Owner role protected** - Cannot change owner role
+- ✅ **Loading states** - Shows spinner during API call
+- ✅ **Auto-refresh** - Updates member list after role change
+- ✅ **Visual feedback** - Dropdown styled to match role badge colors
+- ✅ **Validation** - Backend validates role values
+
+**Permission Structure**:
+```
+Owner → Can change any member/admin role
+Admin → Cannot change roles (read-only view)
+Member → Cannot change roles (read-only view)
+```
+
+**UI Behavior**:
+- **For Owners**: Role badge becomes a clickable dropdown
+- **For Admins/Members**: Role badge is static text only
+- **For Owner Badge**: Always static (owner role cannot be changed)
+
+**Result**:
+- ✅ Workspace owners can promote members to admins
+- ✅ Workspace owners can demote admins to members
+- ✅ No need to remove and re-invite to change roles
+- ✅ Instant role changes with immediate UI feedback
+- ✅ Proper permission checks prevent unauthorized changes
+
+**Key Learning**: 
+- **Inline editing improves UX** - No need for separate "Edit Role" modal
+- **Owner-only restriction** - Role management is a sensitive owner privilege
+- **Reuse existing UI components** - Select component works great for role changes
+- **Loading states prevent confusion** - Show spinner during async operations
+- **Always validate on backend** - Frontend controls are for UX, backend enforces security
+- **Cannot change owner role** - Workspace must always have exactly one owner
+
+**API Endpoints**:
+- `PATCH /api/workspaces/:id/members/:userId/role` - Update member role
+
+**Response Format**:
+```json
+{
+  "success": true,
+  "message": "Member role updated to admin successfully",
+  "role": "admin"
+}
+```
+
+**Error Cases Handled**:
+- 403: Not workspace owner
+- 400: Invalid role (not 'admin' or 'member')
+- 400: Trying to change owner role
+- 404: Member not found
+
+**Don't Do This**:
+❌ Allow admins to change roles (owner-only privilege)
+❌ Allow changing owner role (must always have one owner)
+❌ Accept arbitrary role values without validation
+❌ Forget to refresh UI after role change
+❌ Show role dropdown to non-owners
+
+**Do This Instead**:
+✅ Restrict role changes to workspace owners only
+✅ Protect owner role from being changed
+✅ Validate role values on backend ('admin' or 'member' only)
+✅ Auto-refresh member list after successful role change
+✅ Show interactive dropdown only to owners
+✅ Use loading states to prevent double-clicks
+✅ Provide clear success/error messages
+
+**Testing Checklist**:
+1. ✅ Owner can change member to admin
+2. ✅ Owner can change admin to member
+3. ✅ Admin cannot see role dropdowns
+4. ✅ Member cannot see role dropdowns
+5. ✅ Cannot change owner role (static badge)
+6. ✅ Loading spinner shows during update
+7. ✅ Success message displays after change
+8. ✅ Member list refreshes with new role
+9. ✅ Backend validates ownership
+10. ✅ Backend validates role values
+
+**CRITICAL DEPLOYMENT RULE**:
+⚠️ **ALWAYS deploy to development environment ONLY**
+```bash
+# ✅ CORRECT - Always use this:
+npm run deploy -- --env development
+
+# ❌ WRONG - Never use plain deploy (goes to production):
+npm run deploy
+wrangler deploy
+```
+
+**Why**: Frontend at `localhost:5173` points to `task-manager-api-dev.benjiemalinao879557.workers.dev`, NOT production API. Deploying to production causes 404 errors in local development.
+
+## Task Visibility - Role-Based Permissions (October 16, 2025)
+
+### Issue: Members Can See All Workspace Tasks (Security/Privacy Issue)
+**Problem**: When a member role user logged in, they could see ALL tasks in the workspace, including tasks created by the owner that were not assigned to them. This is a major privacy and security issue.
+
+**Root Cause**: 
+- Task query in `GET /api/tasks` checked workspace membership but not user role
+- Query returned all tasks in the workspace regardless of role
+- No filtering applied for member role users
+- Members had same visibility as admins/owners
+
+**Security Impact**:
+- 🚨 Members could see private/sensitive tasks not meant for them
+- 🚨 Members could see unassigned tasks created by owners/admins
+- 🚨 No task privacy within workspaces
+- 🚨 Violated principle of least privilege
+
+**What Members Could See (WRONG)**:
+```sql
+-- Old query (no role check)
+SELECT * FROM tasks 
+WHERE workspace_id = ? 
+-- Returns ALL workspace tasks to everyone!
+```
+
+**Solution**:
+Added role-based filtering to task queries:
+
+**1. For specific workspace queries** (when `workspaceId` is provided):
+```typescript
+// Check user's role in workspace
+const membership = await c.env.DB.prepare(`
+  SELECT role FROM workspace_members
+  WHERE workspace_id = ? AND user_id = ?
+`).bind(workspaceId, auth.userId).first<{ role: string }>();
+
+// Members only see tasks assigned to them OR created by them
+if (userRole === 'member') {
+  query += ` AND (t.assigned_to = ? OR t.user_id = ?)`;
+  bindings.push(auth.userId);
+  bindings.push(auth.userId);
+}
+// Admins and Owners see all workspace tasks
+```
+
+**2. For default queries** (no specific workspace):
+```typescript
+// Apply member restriction across all workspaces
+query += ` AND (
+  EXISTS (
+    SELECT 1 FROM workspace_members wm 
+    WHERE wm.workspace_id = t.workspace_id 
+    AND wm.user_id = ? 
+    AND wm.role IN ('owner', 'admin')
+  )
+  OR t.assigned_to = ?
+  OR t.user_id = ?
+)`;
+```
+
+**Permission Structure Now**:
+```
+👑 Owner    → Sees ALL tasks in workspace
+🛡️  Admin    → Sees ALL tasks in workspace
+👤 Member   → Only sees:
+              1. Tasks assigned to them (t.assigned_to = user_id)
+              2. Tasks they created (t.user_id = user_id)
+```
+
+**What Members See Now (CORRECT)**:
+- ✅ Tasks assigned to them
+- ✅ Tasks they created
+- ❌ Unassigned tasks created by others
+- ❌ Tasks assigned to other members
+- ❌ Private owner/admin tasks
+
+**Result**:
+- ✅ Members have restricted task visibility (privacy protected)
+- ✅ Admins can see all workspace tasks (for management)
+- ✅ Owners can see all workspace tasks (full control)
+- ✅ Follows principle of least privilege
+- ✅ Task privacy within workspaces enforced
+
+**Key Learning**: 
+- **Role-based access control (RBAC) is critical** - Don't assume workspace membership equals full access
+- **Members need restricted visibility** - They should only see what they need to work on
+- **Test with different role users** - Login as each role type to verify permissions
+- **Security by default** - Start with least privilege, not most
+- **Workspace membership ≠ Full access** - Membership grants access, role determines what you can see/do
+
+**Testing Procedure**:
+1. Login as workspace owner
+2. Create a task (don't assign it)
+3. Logout, login as member user
+4. ✅ Member should NOT see the unassigned task
+5. Owner assigns task to member
+6. ✅ Member now sees the task
+7. Member creates their own task
+8. ✅ Member can see their own task
+
+**SQL Query Patterns**:
+```sql
+-- For Members (restricted)
+WHERE workspace_id = ? 
+AND (assigned_to = ? OR user_id = ?)
+
+-- For Admins/Owners (full access)
+WHERE workspace_id = ?
+```
+
+**Don't Do This**:
+❌ Show all workspace tasks to all workspace members
+❌ Assume "workspace member" means "can see everything"
+❌ Skip role checks in queries
+❌ Forget to test with member role users
+❌ Give members admin-level visibility
+
+**Do This Instead**:
+✅ Filter tasks by user role in every query
+✅ Members see only assigned tasks + own tasks
+✅ Admins/Owners see all workspace tasks
+✅ Test with each role type
+✅ Apply principle of least privilege
+✅ Check role in both specific and default queries
+
+**Related Endpoints That May Need Similar Fixes**:
+- Task detail view (GET /api/tasks/:id)
+- Task statistics/reports
+- Calendar view
+- Any other task listing endpoints
