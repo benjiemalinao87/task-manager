@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Clock, Calendar, Users, TrendingUp, Download, Filter, Loader2, User, CheckCircle } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { apiClient } from '../lib/api-client';
@@ -41,9 +42,18 @@ interface HoursReport {
 
 export function TimeReports() {
   const { currentWorkspace } = useWorkspace();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [report, setReport] = useState<HoursReport | null>(null);
+
+  // Redirect members to main tasks page
+  useEffect(() => {
+    if (currentWorkspace && currentWorkspace.role === 'member') {
+      console.log('Time Reports is only available for owners and admins. Redirecting member to tasks page...');
+      navigate('/');
+    }
+  }, [currentWorkspace, navigate]);
 
   // Filters
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
@@ -92,9 +102,14 @@ export function TimeReports() {
 
       const response = await apiClient.getHoursReport(currentWorkspace.id, filters);
       setReport(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading report:', error);
-      alert('Failed to load report. Please try again.');
+      // Provide specific error messages
+      if (error.message?.includes('Permission denied')) {
+        alert('Access denied. Time Reports are only available for workspace owners and admins.');
+      } else {
+        alert(`Failed to load report: ${error.message || 'Unknown error'}. Please try again.`);
+      }
     } finally {
       setIsLoading(false);
     }

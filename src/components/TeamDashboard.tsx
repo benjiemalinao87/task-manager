@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   Clock,
@@ -57,9 +58,18 @@ interface Task {
 
 export function TeamDashboard() {
   const { currentWorkspace } = useWorkspace();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState('14d');
+
+  // Redirect members to main tasks page
+  useEffect(() => {
+    if (currentWorkspace && currentWorkspace.role === 'member') {
+      console.log('Team Dashboard is only available for owners and admins. Redirecting member to tasks page...');
+      navigate('/');
+    }
+  }, [currentWorkspace, navigate]);
   
   // State for data
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -166,9 +176,16 @@ export function TeamDashboard() {
           }
         ]);
 
-      } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-        setError('Failed to load dashboard data');
+      } catch (err: any) {
+        console.error('Error loading dashboard data:', err);
+        // Provide specific error messages
+        if (err.message?.includes('Permission denied')) {
+          setError('Access denied. This dashboard is only available for workspace owners and admins.');
+        } else if (err.message?.includes('404')) {
+          setError('Dashboard data not found. Please try refreshing the page.');
+        } else {
+          setError(`Unable to load dashboard: ${err.message || 'Unknown error'}`);
+        }
       } finally {
         setIsLoading(false);
       }
