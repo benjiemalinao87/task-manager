@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play, AlertCircle, AlertTriangle, Flame, FileText } from 'lucide-react';
+import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
 
