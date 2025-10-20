@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, X, Send, Users } from 'lucide-react';
+import { MessageCircle, X, Send, Users, Volume2, VolumeX } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useAuth } from '../context/AuthContext';
 import { useChatWebSocket } from '../hooks/useChatWebSocket';
@@ -39,28 +39,64 @@ export function ChatBubble() {
   const prevMessagesLengthRef = React.useRef(messages.length);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState<{userName: string; content: string} | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    // Load sound preference from localStorage
+    const saved = localStorage.getItem('chatSoundEnabled');
+    return saved === null ? true : saved === 'true';
+  });
 
-  // Play notification sound for new messages
+  // Save sound preference to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('chatSoundEnabled', soundEnabled.toString());
+  }, [soundEnabled]);
+
+  // Play Nokia 3310 style notification sound 🔔
   const playNotificationSound = () => {
     try {
-      // Create a simple notification sound using Web Audio API
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      // Classic Nokia tune notes (frequencies in Hz)
+      // "Grande Valse" snippet - the iconic Nokia ringtone
+      const melody = [
+        { freq: 659.25, duration: 0.125 },  // E5
+        { freq: 587.33, duration: 0.125 },  // D5
+        { freq: 369.99, duration: 0.25 },   // F#4
+        { freq: 415.30, duration: 0.25 },   // G#4
+        { freq: 554.37, duration: 0.125 },  // C#5
+        { freq: 493.88, duration: 0.125 },  // B4
+        { freq: 293.66, duration: 0.25 },   // D4
+        { freq: 329.63, duration: 0.25 },   // E4
+        { freq: 493.88, duration: 0.125 },  // B4
+        { freq: 440.00, duration: 0.125 },  // A4
+        { freq: 277.18, duration: 0.25 },   // C#4
+        { freq: 329.63, duration: 0.25 },   // E4
+        { freq: 440.00, duration: 0.5 },    // A4
+      ];
 
-      oscillator.frequency.value = 800; // Frequency in Hz
-      oscillator.type = 'sine';
+      let currentTime = audioContext.currentTime;
 
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      melody.forEach(note => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
 
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.value = note.freq;
+        oscillator.type = 'square'; // Square wave for that retro sound
+
+        // Envelope for more authentic sound
+        gainNode.gain.setValueAtTime(0, currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, currentTime + note.duration);
+
+        oscillator.start(currentTime);
+        oscillator.stop(currentTime + note.duration);
+
+        currentTime += note.duration;
+      });
     } catch (error) {
-      console.error('Failed to play notification sound:', error);
+      console.error('Failed to play Nokia ringtone:', error);
     }
   };
 
@@ -74,7 +110,10 @@ export function ChatBubble() {
 
       // Play sound and show notification for messages from other users
       if (isFromOtherUser) {
-        playNotificationSound();
+        // Only play sound if enabled
+        if (soundEnabled) {
+          playNotificationSound();
+        }
 
         // Show popup notification if chat is closed
         if (!isOpen) {
@@ -173,8 +212,20 @@ export function ChatBubble() {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                title={soundEnabled ? 'Mute notifications' : 'Unmute notifications'}
+              >
+                {soundEnabled ? (
+                  <Volume2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                ) : (
+                  <VolumeX className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                )}
+              </button>
+              <button
                 onClick={() => setShowOnlineUsers(!showOnlineUsers)}
                 className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                title="Show online users"
               >
                 <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 {onlineUsers.length > 0 && (
@@ -186,6 +237,7 @@ export function ChatBubble() {
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                title="Close chat"
               >
                 <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
