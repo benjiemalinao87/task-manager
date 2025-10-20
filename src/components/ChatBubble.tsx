@@ -45,6 +45,12 @@ export function ChatBubble() {
     return saved === null ? true : saved === 'true';
   });
 
+  // Track last read message ID to prevent showing old notifications on refresh
+  const [lastReadMessageId, setLastReadMessageId] = useState<string>(() => {
+    const saved = localStorage.getItem('chatLastReadMessageId');
+    return saved || '';
+  });
+
   // Save sound preference to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('chatSoundEnabled', soundEnabled.toString());
@@ -108,8 +114,11 @@ export function ChatBubble() {
       const latestMessage = messages[messages.length - 1];
       const isFromOtherUser = latestMessage.userId !== user?.id;
 
-      // Play sound and show notification for messages from other users
-      if (isFromOtherUser) {
+      // Check if this message is newer than the last read message
+      const isUnreadMessage = latestMessage.id !== lastReadMessageId;
+
+      // Play sound and show notification for messages from other users that haven't been read
+      if (isFromOtherUser && isUnreadMessage) {
         // Only play sound if enabled
         if (soundEnabled) {
           playNotificationSound();
@@ -128,13 +137,20 @@ export function ChatBubble() {
     }
 
     prevMessagesLengthRef.current = messages.length;
-  }, [messages, isOpen, user?.id]);
+  }, [messages, isOpen, user?.id, lastReadMessageId, soundEnabled]);
 
   useEffect(() => {
     if (isOpen) {
       setUnreadCount(0);
+
+      // Mark all messages as read when chat is opened
+      if (messages.length > 0) {
+        const latestMessageId = messages[messages.length - 1].id;
+        setLastReadMessageId(latestMessageId);
+        localStorage.setItem('chatLastReadMessageId', latestMessageId);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, messages]);
 
   const handleSend = () => {
     if (message.trim() && isConnected) {
