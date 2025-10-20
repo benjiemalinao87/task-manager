@@ -37,6 +37,14 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
   const connect = useCallback(() => {
     if (!workspaceId || !user) {
+      console.log('Chat: Waiting for workspace and user...', { workspaceId, user: !!user });
+      return;
+    }
+
+    // Get token first to check if we should proceed
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('Chat: No auth token found in localStorage');
       return;
     }
 
@@ -46,17 +54,14 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
     }
 
     try {
-      // Get WebSocket URL from API
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.error('No auth token found');
-        return;
-      }
+      console.log('Chat: Attempting to connect to workspace:', workspaceId);
 
       // Convert HTTP URL to WebSocket URL
       const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
       // Pass token as query parameter (WebSocket can't use Authorization header in browsers)
       const url = `${wsUrl}/api/chat/workspace/${workspaceId}/connect?token=${encodeURIComponent(token)}`;
+
+      console.log('Chat: Connecting to:', url.replace(/token=[^&]+/, 'token=***'));
 
       const ws = new WebSocket(url);
 
