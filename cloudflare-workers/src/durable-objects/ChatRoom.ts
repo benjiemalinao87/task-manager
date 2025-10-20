@@ -28,6 +28,7 @@ export class ChatRoom extends DurableObject {
   private sessions: Session[];
   private messageHistory: Message[];
   private onlineUsers: Map<string, OnlineUser>;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -42,6 +43,45 @@ export class ChatRoom extends DurableObject {
         this.messageHistory = stored;
       }
     });
+
+    // Clean up broken connections every 60 seconds
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupBrokenSessions();
+    }, 60000);
+  }
+
+  // Clean up broken or inactive sessions
+  private cleanupBrokenSessions(): void {
+    const before = this.sessions.length;
+
+    this.sessions = this.sessions.filter(session => {
+      if (session.quit) return false;
+
+      try {
+        // Check if WebSocket is still open
+        if (session.webSocket.readyState !== 1) { // 1 = OPEN
+          session.quit = true;
+          this.onlineUsers.delete(session.userId);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        session.quit = true;
+        this.onlineUsers.delete(session.userId);
+        return false;
+      }
+    });
+
+    const after = this.sessions.length;
+    if (before !== after) {
+      console.log(`Cleaned up ${before - after} broken sessions. Active: ${after}`);
+
+      // Broadcast updated online users
+      this.broadcast({
+        type: "online_users",
+        onlineUsers: Array.from(this.onlineUsers.values())
+      });
+    }
   }
 
   async fetch(request: Request): Promise<Response> {

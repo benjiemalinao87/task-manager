@@ -26,6 +26,11 @@ interface ChatState {
   sendTypingIndicator: () => void;
 }
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_BASE = 1000; // 1 second
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+const CONNECTION_TIMEOUT = 10000; // 10 seconds
+
 export function useChatWebSocket(workspaceId: string | null): ChatState {
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
@@ -33,6 +38,8 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
 
   const connect = useCallback(() => {
@@ -50,7 +57,17 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
     // Close existing connection if any
     if (wsRef.current) {
-      wsRef.current.close();
+      // Clean up existing connection properly
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onopen = null;
+
+      if (wsRef.current.readyState === WebSocket.OPEN ||
+          wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close(1000, 'Reconnecting');
+      }
+      wsRef.current = null;
     }
 
     try {
@@ -65,21 +82,31 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
       const ws = new WebSocket(url);
 
+      // Set connection timeout
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.log('Chat: Connection timeout');
+          ws.close(1000, 'Connection timeout');
+        }
+      }, CONNECTION_TIMEOUT);
+
       ws.addEventListener('open', () => {
         console.log('WebSocket connected');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
 
+        // Clear connection timeout
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+
         // Send ping every 30 seconds to keep connection alive
-        const pingInterval = setInterval(() => {
+        pingIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }));
           }
         }, 30000);
-
-        ws.addEventListener('close', () => {
-          clearInterval(pingInterval);
-        });
       });
 
       ws.addEventListener('message', (event) => {
@@ -133,19 +160,40 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
         setIsConnected(false);
       });
 
-      ws.addEventListener('close', () => {
-        console.log('WebSocket closed');
+      ws.addEventListener('close', (event) => {
+        console.log('WebSocket closed', { code: event.code, reason: event.reason });
         setIsConnected(false);
         wsRef.current = null;
 
+        // Clean up intervals and timeouts
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+
+        if (connectionTimeoutRef.current) {
+          clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+
+        // Don't reconnect if close was intentional (code 1000)
+        if (event.code === 1000 && event.reason === 'Reconnecting') {
+          return;
+        }
+
         // Attempt to reconnect with exponential backoff
-        if (reconnectAttemptsRef.current < 5) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          console.log(`Reconnecting in ${delay}ms...`);
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          const delay = Math.min(
+            RECONNECT_DELAY_BASE * Math.pow(2, reconnectAttemptsRef.current),
+            MAX_RECONNECT_DELAY
+          );
+          console.log(`Chat: Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`);
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current++;
             connect();
           }, delay);
+        } else {
+          console.error('Chat: Max reconnection attempts reached. Please refresh the page.');
         }
       });
 
@@ -159,11 +207,35 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
     connect();
 
     return () => {
+      // Clean up all timers and intervals
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
+
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+
+      // Close WebSocket connection properly
       if (wsRef.current) {
-        wsRef.current.close();
+        // Remove event listeners to prevent memory leaks
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onopen = null;
+
+        if (wsRef.current.readyState === WebSocket.OPEN ||
+            wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close(1000, 'Component unmounting');
+        }
+        wsRef.current = null;
       }
     };
   }, [connect]);
