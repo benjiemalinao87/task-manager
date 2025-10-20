@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, X, Send, Users } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useAuth } from '../context/AuthContext';
 import { useChatWebSocket } from '../hooks/useChatWebSocket';
 
 interface Message {
@@ -23,6 +24,7 @@ export function ChatBubble() {
   const [message, setMessage] = useState('');
   const [showOnlineUsers, setShowOnlineUsers] = useState(false);
   const { currentWorkspace } = useWorkspace();
+  const { user } = useAuth();
 
   const {
     messages,
@@ -169,7 +171,7 @@ export function ChatBubble() {
               </div>
             ) : (
               messages.map((msg) => {
-                const isCurrentUser = msg.userId === localStorage.getItem('userId');
+                const isCurrentUser = msg.userId === user?.id;
 
                 return (
                   <div
@@ -179,8 +181,8 @@ export function ChatBubble() {
                     <div
                       className={`max-w-[75%] ${
                         isCurrentUser
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                          ? 'bg-blue-600 text-white rounded-br-none'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
                       } rounded-lg px-3 py-2`}
                     >
                       {!isCurrentUser && (
