@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://task-manager-api-dev.workoto-llc.workers.dev';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://task-manager-api-dev.benjiemalinao879557.workers.dev';
 
 interface Message {
   id: string;
@@ -42,7 +42,7 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
     }
 
     // Get token first to check if we should proceed
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (!token) {
       console.error('Chat: No auth token found in localStorage');
       return;
