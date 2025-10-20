@@ -126,6 +126,10 @@ export class ChatRoom extends DurableObject {
     const userName = url.searchParams.get("userName") || "Anonymous";
     const workspaceId = url.searchParams.get("workspaceId") || "";
 
+    console.log(`[ChatRoom] User connecting: ${userName} (${userId}) to workspace: ${workspaceId}`);
+    console.log(`[ChatRoom] Current online users before add:`, Array.from(this.onlineUsers.keys()));
+    console.log(`[ChatRoom] Current sessions count:`, this.sessions.length);
+
     // Create session
     const session: Session = {
       webSocket,
@@ -144,7 +148,10 @@ export class ChatRoom extends DurableObject {
       joinedAt: Date.now()
     });
 
-    // Broadcast user joined
+    console.log(`[ChatRoom] Online users after add:`, Array.from(this.onlineUsers.values()).map(u => `${u.userName} (${u.userId})`));
+
+    // Broadcast user joined to OTHER users
+    console.log(`[ChatRoom] Broadcasting user_joined to ${this.sessions.length - 1} other sessions`);
     this.broadcast({
       type: "user_joined",
       userId,
@@ -158,7 +165,8 @@ export class ChatRoom extends DurableObject {
       messages: this.messageHistory.slice(-50) // Last 50 messages
     }));
 
-    // Send current online users
+    // Send current online users to the NEW user
+    console.log(`[ChatRoom] Sending online_users list to new user ${userName}`);
     webSocket.send(JSON.stringify({
       type: "online_users",
       onlineUsers: Array.from(this.onlineUsers.values())
@@ -219,9 +227,11 @@ export class ChatRoom extends DurableObject {
 
     // Handle close
     webSocket.addEventListener("close", () => {
+      console.log(`[ChatRoom] User disconnecting: ${userName} (${userId})`);
       session.quit = true;
       this.sessions = this.sessions.filter(s => s !== session);
       this.onlineUsers.delete(userId);
+      console.log(`[ChatRoom] Online users after disconnect:`, Array.from(this.onlineUsers.values()).map(u => `${u.userName} (${u.userId})`));
 
       // Broadcast user left
       this.broadcast({

@@ -1,8 +1,8 @@
 # 🤖 AI Task Summary Configuration
 
-**Status:** ✅ Platform-Wide OpenAI Key  
+**Status:** ✅ Platform-Wide OpenAI Keys 
 **All Users:** Automatic AI summaries (no setup needed)
-
+S
 ---
 
 ## How AI Summaries Work
@@ -42,7 +42,7 @@ Authorization: `Bearer ${c.env.OPENAI_API_KEY}`
 
 **Free Tier (Early Adopter):**
 ```yaml
-Monthly Limit: 100,000 tokens
+Monthly Limit: 100,000 token
 Estimated Tasks: 250-500 summaries
 Reset: Every 30 days from signup
 Cost: ~$0.15/user/month @ $0.0015/1k tokens

@@ -53,19 +53,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const workspaceList = response.workspaces || [];
       setWorkspaces(workspaceList);
 
-      // Set current workspace from localStorage or first workspace
+      // Set current workspace from localStorage or prioritize shared workspaces
       const savedWorkspaceId = localStorage.getItem('current_workspace_id');
       if (savedWorkspaceId) {
         const saved = workspaceList.find((w: Workspace) => w.id === savedWorkspaceId);
         if (saved) {
           setCurrentWorkspace(saved);
         } else if (workspaceList.length > 0) {
-          setCurrentWorkspace(workspaceList[0]);
-          localStorage.setItem('current_workspace_id', workspaceList[0].id);
+          // Prioritize shared workspaces (where user is a member, not owner)
+          const sharedWorkspace = workspaceList.find((w: Workspace) => w.role === 'member');
+          const defaultWorkspace = sharedWorkspace || workspaceList[0];
+          setCurrentWorkspace(defaultWorkspace);
+          localStorage.setItem('current_workspace_id', defaultWorkspace.id);
         }
       } else if (workspaceList.length > 0) {
-        setCurrentWorkspace(workspaceList[0]);
-        localStorage.setItem('current_workspace_id', workspaceList[0].id);
+        // Prioritize shared workspaces (where user is a member, not owner)
+        const sharedWorkspace = workspaceList.find((w: Workspace) => w.role === 'member');
+        const defaultWorkspace = sharedWorkspace || workspaceList[0];
+        setCurrentWorkspace(defaultWorkspace);
+        localStorage.setItem('current_workspace_id', defaultWorkspace.id);
       }
     } catch (err) {
       console.error('Failed to load workspaces:', err);
