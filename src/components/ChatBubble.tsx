@@ -3,6 +3,7 @@ import { MessageCircle, X, Send, Users } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useAuth } from '../context/AuthContext';
 import { useChatWebSocket } from '../hooks/useChatWebSocket';
+import { ChatNotification } from './ChatNotification';
 
 interface Message {
   id: string;
@@ -35,12 +36,60 @@ export function ChatBubble() {
   } = useChatWebSocket(currentWorkspace?.id || null);
 
   const [unreadCount, setUnreadCount] = useState(0);
+  const prevMessagesLengthRef = React.useRef(messages.length);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState<{userName: string; content: string} | null>(null);
 
-  useEffect(() => {
-    if (!isOpen && messages.length > 0) {
-      setUnreadCount(prev => prev + 1);
+  // Play notification sound for new messages
+  const playNotificationSound = () => {
+    try {
+      // Create a simple notification sound using Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800; // Frequency in Hz
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.error('Failed to play notification sound:', error);
     }
-  }, [messages, isOpen]);
+  };
+
+  // Detect new messages and play sound
+  useEffect(() => {
+    const hasNewMessages = messages.length > prevMessagesLengthRef.current;
+
+    if (hasNewMessages && messages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      const isFromOtherUser = latestMessage.userId !== user?.id;
+
+      // Play sound and show notification for messages from other users
+      if (isFromOtherUser) {
+        playNotificationSound();
+
+        // Show popup notification if chat is closed
+        if (!isOpen) {
+          setNotificationMessage({
+            userName: latestMessage.userName,
+            content: latestMessage.content
+          });
+          setShowNotification(true);
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+    }
+
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, isOpen, user?.id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -235,6 +284,18 @@ export function ChatBubble() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Popup Notification */}
+      {showNotification && notificationMessage && (
+        <ChatNotification
+          message={notificationMessage}
+          onClose={() => setShowNotification(false)}
+          onClick={() => {
+            setShowNotification(false);
+            setIsOpen(true);
+          }}
+        />
       )}
     </>
   );
