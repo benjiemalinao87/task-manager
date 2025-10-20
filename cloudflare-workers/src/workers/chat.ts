@@ -4,43 +4,82 @@ import type { Env, SessionData } from '../types';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Middleware to verify authentication
-app.use('/*', async (c, next) => {
+// Helper function to verify token
+async function verifyAuthToken(token: string, env: Env): Promise<SessionData | null> {
+  try {
+    // Verify JWT signature
+    const isValid = await verify(token, env.JWT_SECRET);
+
+    if (!isValid) {
+      return null;
+    }
+
+    // Check session in KV
+    const sessionData = await env.KV.get(`session:${token}`, 'json') as SessionData | null;
+
+    return sessionData;
+  } catch (error) {
+    console.error('Auth error:', error);
+    return null;
+  }
+}
+
+// Middleware to verify authentication for HTTP endpoints
+app.use('/workspace/:workspaceId/messages', async (c, next) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   const token = authHeader.substring(7);
+  const sessionData = await verifyAuthToken(token, c.env);
 
-  try {
-    // Verify JWT signature
-    const isValid = await verify(token, c.env.JWT_SECRET);
-
-    if (!isValid) {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
-
-    // Check session in KV
-    const sessionData = await c.env.KV.get(`session:${token}`, 'json') as SessionData | null;
-
-    if (!sessionData) {
-      return c.json({ error: 'Session expired' }, 401);
-    }
-
-    c.set('userId', sessionData.userId);
-    c.set('email', sessionData.email);
-    await next();
-  } catch (error) {
-    console.error('Auth error:', error);
-    return c.json({ error: 'Invalid token' }, 401);
+  if (!sessionData) {
+    return c.json({ error: 'Invalid or expired token' }, 401);
   }
+
+  c.set('userId', sessionData.userId);
+  c.set('email', sessionData.email);
+  await next();
+});
+
+app.use('/workspace/:workspaceId/online', async (c, next) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const token = authHeader.substring(7);
+  const sessionData = await verifyAuthToken(token, c.env);
+
+  if (!sessionData) {
+    return c.json({ error: 'Invalid or expired token' }, 401);
+  }
+
+  c.set('userId', sessionData.userId);
+  c.set('email', sessionData.email);
+  await next();
 });
 
 // Get or create WebSocket connection for a workspace chat room
 app.get('/workspace/:workspaceId/connect', async (c) => {
-  const userId = c.get('userId') as string;
   const workspaceId = c.req.param('workspaceId');
+
+  // Get token from query parameter (WebSocket can't use Authorization header in browsers)
+  const token = c.req.query('token');
+
+  if (!token) {
+    return c.json({ error: 'Unauthorized - No token provided' }, 401);
+  }
+
+  // Verify token
+  const sessionData = await verifyAuthToken(token, c.env);
+
+  if (!sessionData) {
+    return c.json({ error: 'Invalid or expired token' }, 401);
+  }
+
+  const userId = sessionData.userId;
 
   // Verify user is member of workspace
   const member = await c.env.DB.prepare(

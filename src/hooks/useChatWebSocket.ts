@@ -55,21 +55,15 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
       // Convert HTTP URL to WebSocket URL
       const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-      const url = `${wsUrl}/api/chat/workspace/${workspaceId}/connect`;
+      // Pass token as query parameter (WebSocket can't use Authorization header in browsers)
+      const url = `${wsUrl}/api/chat/workspace/${workspaceId}/connect?token=${encodeURIComponent(token)}`;
 
       const ws = new WebSocket(url);
 
-      // Add authorization token
       ws.addEventListener('open', () => {
         console.log('WebSocket connected');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
-
-        // Send auth token
-        ws.send(JSON.stringify({
-          type: 'auth',
-          token: token
-        }));
 
         // Send ping every 30 seconds to keep connection alive
         const pingInterval = setInterval(() => {
