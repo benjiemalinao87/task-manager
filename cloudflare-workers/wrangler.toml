@@ -6,6 +6,16 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Durable Objects
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+script_name = "task-manager-api-dev"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatRoom"]
+
 # ===================================
 # DEVELOPMENT ENVIRONMENT
 # ===================================
@@ -55,6 +65,11 @@ max_batch_size = 1
 max_batch_timeout = 5
 max_retries = 2
 
+[[env.development.durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+script_name = "task-manager-api-dev"
+
 # ===================================
 # PRODUCTION ENVIRONMENT
 # ===================================
@@ -87,6 +102,11 @@ queue = "email-queue-dev"  # Using dev queue (shared with dev worker)
 [[env.production.queues.producers]]
 binding = "AI_QUEUE"
 queue = "ai-queue-dev"  # Using dev queue (shared with dev worker)
+
+[[env.production.durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "ChatRoom"
+script_name = "task-manager-api"
 
 # Note: Queue consumers are handled by dev worker
 # Both dev and prod workers can produce to these queues

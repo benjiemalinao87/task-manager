@@ -24,6 +24,7 @@ import { TimeReports } from './components/TimeReports';
 import { WorkspaceSwitcher } from './components/WorkspaceSwitcher';
 import { PendingInvitations } from './components/PendingInvitations';
 import { AcceptInvitation } from './components/AcceptInvitation';
+import { ChatBubble } from './components/ChatBubble';
 
 function TaskManager() {
   const { user, logout } = useAuth();
@@ -183,14 +184,17 @@ function TaskManager() {
       )}
       {showIntegrations && <Integrations onClose={() => setShowIntegrations(false)} />}
       {showAsanaImport && (
-        <AsanaImport 
-          onClose={() => setShowAsanaImport(false)} 
+        <AsanaImport
+          onClose={() => setShowAsanaImport(false)}
           onTasksImported={() => {
             setRefreshTrigger(prev => prev + 1);
             setShowAsanaImport(false);
-          }} 
+          }}
         />
       )}
+
+      {/* Chat Bubble - Available for all workspace members */}
+      <ChatBubble />
     </div>
   );
 }

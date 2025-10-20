@@ -4,6 +4,7 @@ export interface Env {
   KV: KVNamespace;
   EMAIL_QUEUE: Queue;
   AI_QUEUE: Queue;
+  CHAT_ROOM: DurableObjectNamespace;
   JWT_SECRET: string;
   OPENAI_API_KEY: string;
   RESEND_API_KEY: string;  // Default email provider (customerconnects.com)

@@ -14,6 +14,10 @@ import integrations from './workers/integrations';
 import workspaces from './workers/workspaces';
 import invitations from './workers/invitations';
 import reports from './workers/reports';
+import chat from './workers/chat';
+
+// Export Durable Object
+export { ChatRoom } from './durable-objects/ChatRoom';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -48,6 +52,9 @@ app.route('/api/workspaces', reports);
 
 // Mount standalone invitation routes (for accepting/declining by token)
 app.route('/api/invitations', invitations);
+
+// Mount chat routes
+app.route('/api/chat', chat);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

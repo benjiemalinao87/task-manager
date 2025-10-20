@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, Link as LinkIcon, Calendar, CheckCircle2, AlertCircle, Loader2, Trash2, Maximize2, Minimize2, ExternalLink, Pause, Play, AlertTriangle, Flame, FileText, User } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
+import { StatusSelector } from './StatusSelector';
+import { TaskStatus } from '../lib/statusConstants';
 
 interface Task {
   id: string;
@@ -225,6 +227,24 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     setExpandedTaskId(expandedTaskId === taskId ? null : taskId);
   };
 
+  const handleStatusChange = async (taskId: string, newStatus: TaskStatus | null) => {
+    if (!newStatus) return;
+
+    try {
+      await apiClient.updateTask(taskId, {
+        status: newStatus,
+      });
+
+      // Update local task state
+      setTasks(tasks.map(task =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      ));
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      alert('Failed to update task status. Please try again.');
+    }
+  };
+
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
       return;
@@ -373,11 +393,14 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                     </span>
                   );
                 })()}
-                {/* Status Badge */}
-                <span className="flex items-center gap-2 text-sm text-orange-700 bg-orange-100 px-4 py-2 rounded-xl font-bold shadow-sm border border-orange-200 whitespace-nowrap">
-                  <Clock className="w-4 h-4 animate-pulse" />
-                  In Progress
-                </span>
+                {/* Status Selector */}
+                <StatusSelector
+                  type="task"
+                  value={task.status as TaskStatus}
+                  onChange={(newStatus) => handleStatusChange(task.id, newStatus)}
+                  allowNoStatus={false}
+                  className="w-auto"
+                />
                 <button
                   type="button"
                   onClick={() => navigate(`/task/${task.id}`)}

@@ -520,13 +520,37 @@ tasks.patch('/:id', async (c) => {
       priority?: string;
     }>();
 
-    // Get task first to check asana_task_id
+    // Get task first to check asana_task_id and workspace permissions
     const task = await c.env.DB.prepare(`
-      SELECT asana_task_id FROM tasks WHERE id = ? AND user_id = ?
-    `).bind(taskId, auth.userId).first<{ asana_task_id: string | null }>();
+      SELECT
+        t.asana_task_id,
+        t.workspace_id,
+        t.user_id,
+        t.assigned_to,
+        wm.role
+      FROM tasks t
+      LEFT JOIN workspace_members wm ON t.workspace_id = wm.workspace_id AND wm.user_id = ?
+      WHERE t.id = ?
+    `).bind(auth.userId, taskId).first<{
+      asana_task_id: string | null;
+      workspace_id: string | null;
+      user_id: string;
+      assigned_to: string | null;
+      role: string | null;
+    }>();
 
     if (!task) {
       return c.json({ error: 'Task not found' }, 404);
+    }
+
+    // Check permissions: user must be task creator, assigned user, or workspace admin/owner
+    const hasPermission =
+      task.user_id === auth.userId ||
+      task.assigned_to === auth.userId ||
+      (task.role && ['owner', 'admin'].includes(task.role));
+
+    if (!hasPermission) {
+      return c.json({ error: 'Permission denied. You can only update your own tasks or tasks in workspaces where you are an admin/owner.' }, 403);
     }
 
     const now = getCurrentTimestamp();
@@ -585,12 +609,11 @@ tasks.patch('/:id', async (c) => {
 
     // Add WHERE clause bindings
     bindings.push(taskId);
-    bindings.push(auth.userId);
 
     const query = `
       UPDATE tasks
       SET ${updates.join(', ')}
-      WHERE id = ? AND user_id = ?
+      WHERE id = ?
     `;
 
     await c.env.DB.prepare(query).bind(...bindings).run();

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Eye, Send, Download, Trash2, DollarSign, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Plus, Eye, Trash2, DollarSign } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
+import { StatusBadge } from './StatusBadge';
+import { InvoiceStatus } from '../lib/statusConstants';
 
 interface Invoice {
   id: string;
@@ -93,33 +95,6 @@ export function InvoiceList({ onCreateNew, onViewInvoice }: InvoiceListProps) {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      draft: 'bg-gray-100 text-gray-700',
-      sent: 'bg-blue-100 text-blue-700',
-      paid: 'bg-green-100 text-green-700',
-      overdue: 'bg-red-100 text-red-700',
-      cancelled: 'bg-gray-100 text-gray-500',
-    };
-
-    const icons = {
-      draft: Clock,
-      sent: Send,
-      paid: CheckCircle,
-      overdue: XCircle,
-      cancelled: XCircle,
-    };
-
-    const Icon = icons[status as keyof typeof icons] || Clock;
-    const style = styles[status as keyof typeof styles] || styles.draft;
-
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${style}`}>
-        <Icon className="w-3.5 h-3.5" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
-  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
@@ -217,7 +192,7 @@ export function InvoiceList({ onCreateNew, onViewInvoice }: InvoiceListProps) {
                         📋 SAMPLE
                       </span>
                     )}
-                    {getStatusBadge(invoice.status)}
+                    <StatusBadge type="invoice" status={invoice.status} />
                   </div>
                   <div className="space-y-1 text-gray-600">
                     <p className="font-medium text-lg">{invoice.client_name}</p>

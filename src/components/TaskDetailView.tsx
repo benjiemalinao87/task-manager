@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Clock, Link as LinkIcon, Calendar, CheckCircle2, Loader2, Trash2, ArrowLeft, CheckSquare, Pause, Play, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { formatDateTimePST } from '../lib/dateUtils';
+import { StatusSelector } from './StatusSelector';
+import { StatusBadge } from './StatusBadge';
+import { TaskStatus } from '../lib/statusConstants';
 
 interface Task {
   id: string;
@@ -260,6 +263,22 @@ export function TaskDetailView() {
     }
   };
 
+  const handleStatusChange = async (newStatus: TaskStatus | null) => {
+    if (!task || !newStatus) return;
+
+    try {
+      await apiClient.updateTask(task.id, {
+        status: newStatus,
+      });
+
+      // Update local task state
+      setTask({ ...task, status: newStatus });
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      alert('Failed to update task status. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center">
@@ -329,11 +348,14 @@ export function TaskDetailView() {
                   </span>
                 );
               })()}
-              {/* Status Badge */}
-              <span className="flex items-center gap-1 text-xs text-orange-700 bg-orange-100 px-2 py-1 rounded-lg font-bold shadow-sm border border-orange-200">
-                <Clock className="w-3 h-3 animate-pulse" />
-                In Progress
-              </span>
+              {/* Status Selector */}
+              <StatusSelector
+                type="task"
+                value={task.status as TaskStatus}
+                onChange={handleStatusChange}
+                allowNoStatus={false}
+                className="w-auto"
+              />
             </div>
           </div>
 
