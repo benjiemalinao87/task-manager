@@ -1640,3 +1640,131 @@ Page                Owner   Admin   Member
 ✅ Use console.log to explain redirect reasons (for debugging)
 ✅ Test navigation and access with each user role
 ✅ Separate management features (Dashboard/Reports) from general features (Team)
+
+## Team Chat - Duplicate Message Display (October 22, 2025)
+
+### Issue: Messages Appearing Twice in Chat UI
+**Problem**: When sending a message in Team Chat, it briefly appeared twice in the chat UI before returning to normal after a page refresh. The database (D1) only stored one copy, so this was a visual bug.
+
+**Root Cause**: 
+- Multiple WebSocket connections could exist temporarily before old connections fully closed
+- When the `user` object reference changed, the `connect` callback would be recreated, triggering reconnections
+- Each active connection would receive the broadcast message
+- No client-side deduplication of messages by ID
+- Messages were being added to state without checking if they already existed
+
+**How To Detect**:
+```
+Visual: Send a message → See it appear twice in chat
+Database check: SELECT * FROM messages → Only one copy exists ✅
+Refresh page: Duplicates disappear ✅
+
+This confirms it's a frontend state management issue, not a database/backend issue.
+```
+
+**Solution**:
+Added message deduplication using a Set to track seen message IDs:
+
+```typescript
+// Added ref to track seen message IDs
+const seenMessageIdsRef = useRef<Set<string>>(new Set());
+
+// Clear and rebuild seen IDs when loading history
+case 'history':
+  seenMessageIdsRef.current.clear();
+  const historyMessages = data.messages || [];
+  historyMessages.forEach((msg: Message) => {
+    seenMessageIdsRef.current.add(msg.id);
+  });
+  setMessages(historyMessages);
+  break;
+
+// Check for duplicates before adding new messages
+case 'new_message':
+  if (!seenMessageIdsRef.current.has(data.message.id)) {
+    seenMessageIdsRef.current.add(data.message.id);
+    setMessages(prev => [...prev, data.message]);
+  } else {
+    console.log('Duplicate message detected and ignored:', data.message.id);
+  }
+  break;
+
+// Clear seen IDs when connection closes
+ws.addEventListener('close', (event) => {
+  // ... other cleanup ...
+  seenMessageIdsRef.current.clear();
+});
+```
+
+**Why This Works**:
+1. **History loading**: Tracks all message IDs when loading chat history
+2. **New message check**: Before adding a message, checks if ID was already seen
+3. **Ignores duplicates**: Prevents the same message from being added twice
+4. **Connection cleanup**: Clears the Set on disconnect (will be repopulated from history on reconnect)
+5. **Memory efficient**: Set only stores message IDs (strings), not entire message objects
+
+**Key Learning**: 
+- **D1 database had only one copy** - Confirms backend and persistence layer were correct
+- **Visual bugs can be frontend-only** - Message duplication in UI doesn't mean database duplication
+- **Use refs for tracking across renders** - `useRef<Set<string>>` persists across re-renders without causing re-renders
+- **Message IDs are unique** - Generated with `crypto.randomUUID()`, perfect for deduplication
+- **Multiple WebSocket connections can happen** - Especially during reconnection logic
+- **Client-side deduplication is defensive** - Protects against race conditions and multiple connections
+
+**Symptoms vs Reality**:
+```
+Symptom: Message appears twice in UI
+User thinks: "Backend is saving duplicates!"
+Reality: Frontend adding same message to state twice
+Database: Only one copy stored correctly ✅
+```
+
+**How To Verify Fix**:
+1. Send a message in chat
+2. ✅ Message appears only once (no duplicate)
+3. Check browser console for "Duplicate message detected" logs
+4. Refresh page
+5. ✅ Message still appears once (loaded from D1 history)
+6. Check D1 database
+7. ✅ Only one copy in database
+
+**Before Fix**:
+```
+User sends: "Hello"
+→ Server broadcasts to all sessions
+→ User's connection #1 receives: "Hello" → adds to state
+→ User's connection #2 receives: "Hello" → adds to state again
+→ Result: Two "Hello" messages in UI
+```
+
+**After Fix**:
+```
+User sends: "Hello"
+→ Server broadcasts to all sessions
+→ User's connection #1 receives: "Hello" → checks Set → adds to state + Set
+→ User's connection #2 receives: "Hello" → checks Set → already in Set → ignores
+→ Result: One "Hello" message in UI ✅
+```
+
+**Related WebSocket Best Practices**:
+- Always close old connections before creating new ones
+- Track connection state to prevent multiple active connections
+- Use message IDs for idempotency
+- Implement client-side deduplication for reliability
+- Clear tracking state on disconnect/reconnect
+
+**Don't Do This**:
+❌ Assume only one WebSocket connection exists at a time
+❌ Blindly add all incoming messages to state without checking
+❌ Panic and blame the database when seeing UI duplicates
+❌ Use message content for deduplication (use unique IDs)
+❌ Store entire message objects in Set (store IDs only)
+
+**Do This Instead**:
+✅ Use a Set to track seen message IDs
+✅ Check for duplicates before adding to state
+✅ Clear tracking on disconnect (repopulate from history)
+✅ Use `useRef` for tracking state that doesn't need to trigger renders
+✅ Test by refreshing to see if database has duplicates
+✅ Log duplicate detections to console for monitoring
+✅ Trust the unique IDs generated by backend

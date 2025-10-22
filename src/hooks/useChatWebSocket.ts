@@ -40,6 +40,7 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
   const reconnectAttemptsRef = useRef(0);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seenMessageIdsRef = useRef<Set<string>>(new Set()); // Track seen message IDs to prevent duplicates
   const { user } = useAuth();
 
   const connect = useCallback(() => {
@@ -115,11 +116,23 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
           switch (data.type) {
             case 'history':
-              setMessages(data.messages || []);
+              // Clear seen IDs and rebuild from history
+              seenMessageIdsRef.current.clear();
+              const historyMessages = data.messages || [];
+              historyMessages.forEach((msg: Message) => {
+                seenMessageIdsRef.current.add(msg.id);
+              });
+              setMessages(historyMessages);
               break;
 
             case 'new_message':
-              setMessages(prev => [...prev, data.message]);
+              // Only add message if we haven't seen it before
+              if (!seenMessageIdsRef.current.has(data.message.id)) {
+                seenMessageIdsRef.current.add(data.message.id);
+                setMessages(prev => [...prev, data.message]);
+              } else {
+                console.log('Duplicate message detected and ignored:', data.message.id);
+              }
               break;
 
             case 'online_users':
@@ -175,6 +188,9 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
           clearTimeout(connectionTimeoutRef.current);
           connectionTimeoutRef.current = null;
         }
+
+        // Clear seen message IDs on disconnect (will be repopulated from history on reconnect)
+        seenMessageIdsRef.current.clear();
 
         // Don't reconnect if close was intentional (code 1000)
         if (event.code === 1000 && event.reason === 'Reconnecting') {
