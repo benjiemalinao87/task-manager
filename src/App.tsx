@@ -12,10 +12,13 @@ import { Integrations } from './components/Integrations';
 import { AsanaImport } from './components/AsanaImport';
 import { ClockInOut } from './components/ClockInOut';
 import { TaskForm } from './components/TaskForm';
+import { TaskFormModal } from './components/TaskFormModal';
 import { TaskList } from './components/TaskList';
 import { TaskHistory } from './components/TaskHistory';
 import { CalendarView } from './components/CalendarView';
 import { TabNavigation } from './components/TabNavigation';
+import { CompactNavigation } from './components/CompactNavigation';
+import { ConsolidatedHeader } from './components/ConsolidatedHeader';
 import { TaskDetailView } from './components/TaskDetailView';
 import { Invoices } from './components/Invoices';
 import { TeamDashboard } from './components/TeamDashboard';
@@ -34,6 +37,7 @@ function TaskManager() {
   const [showSettings, setShowSettings] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showAsanaImport, setShowAsanaImport] = useState(false);
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [activeTab, setActiveTab] = useState<'manager' | 'history' | 'calendar' | 'invoices'>('manager');
   const [invoiceModuleEnabled, setInvoiceModuleEnabled] = useState(false);
   const [hasAsanaIntegration, setHasAsanaIntegration] = useState(false);
@@ -89,80 +93,31 @@ function TaskManager() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header with Branding */}
-        <header className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-md">
-              <CheckSquare className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Workoto</h1>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-600 bg-white px-4 py-2.5 rounded-xl shadow-sm border border-gray-100">
-              <span className="text-gray-400 mr-2">👤</span>
-              <span className="font-medium">{user?.name || user?.email}</span>
-            </div>
-            {canViewTeamFeatures && (
-              <button
-                onClick={() => navigate('/team-dashboard')}
-                className="p-2.5 text-gray-600 hover:text-blue-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
-                title="Team Dashboard"
-              >
-                <BarChart3 className="w-5 h-5" />
-              </button>
-            )}
-            {hasAsanaIntegration && (
-              <button
-                onClick={() => setShowAsanaImport(true)}
-                className="p-2.5 text-gray-600 hover:text-purple-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
-                title="Import from Asana"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2.5 text-gray-600 hover:text-gray-800 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
-              title="Settings"
-            >
-              <SettingsIcon className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleLogout}
-              className="p-2.5 text-gray-600 hover:text-red-600 bg-white hover:shadow-md rounded-xl transition-all border border-gray-100 shadow-sm"
-              title="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        </header>
-
-        {/* Clock In/Out Widget */}
-        <div className="mb-8">
-          <ClockInOut />
-        </div>
+        {/* Consolidated Header */}
+        <ConsolidatedHeader
+          user={user}
+          onSettings={() => setShowSettings(true)}
+          onLogout={handleLogout}
+          onTeamDashboard={() => navigate('/team-dashboard')}
+          onAsanaImport={() => setShowAsanaImport(true)}
+          canViewTeamFeatures={canViewTeamFeatures}
+          hasAsanaIntegration={hasAsanaIntegration}
+        />
 
         {/* Pending Invitations */}
         <PendingInvitations />
 
-        {/* Tab Navigation */}
-        <div className="mb-8">
-          <TabNavigation
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            showInvoices={invoiceModuleEnabled}
-          />
-        </div>
+        {/* Compact Navigation */}
+        <CompactNavigation
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onCreateTask={() => setShowTaskForm(true)}
+          showInvoices={invoiceModuleEnabled}
+        />
 
         {/* Main Content Area */}
         {activeTab === 'manager' ? (
-          <div className="space-y-8">
-            <TaskForm onTaskCreated={handleTaskCreated} />
-            <TaskList refreshTrigger={refreshTrigger} />
-          </div>
+          <TaskList refreshTrigger={refreshTrigger} />
         ) : activeTab === 'calendar' ? (
           <CalendarView refreshTrigger={refreshTrigger} />
         ) : activeTab === 'invoices' ? (
@@ -190,6 +145,16 @@ function TaskManager() {
             setRefreshTrigger(prev => prev + 1);
             setShowAsanaImport(false);
           }}
+        />
+      )}
+
+      {showTaskForm && (
+        <TaskFormModal
+          onTaskCreated={() => {
+            setRefreshTrigger(prev => prev + 1);
+            setShowTaskForm(false);
+          }}
+          onClose={() => setShowTaskForm(false)}
         />
       )}
 
