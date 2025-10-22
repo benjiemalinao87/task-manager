@@ -33,6 +33,29 @@ export default {
           continue;
         }
 
+        // Handle onboarding invitations (viral loop)
+        if (type === 'onboarding_invitation') {
+          const emailHtml = buildOnboardingInvitationEmail(data);
+          const subject = `${data.inviter_name} invited you to Workoto - Boost your productivity together!`;
+
+          const emailSent = await sendViaResend(
+            [to || data.email],
+            subject,
+            emailHtml,
+            env.RESEND_API_KEY,
+            DEFAULT_FROM_EMAIL,
+            DEFAULT_FROM_NAME
+          );
+
+          if (emailSent) {
+            console.log(`Onboarding invitation email sent to ${to || data.email}`);
+            message.ack();
+          } else {
+            throw new Error('Failed to send onboarding invitation email');
+          }
+          continue;
+        }
+
         // Get user's name from the database
         const user = await env.DB.prepare(`
           SELECT name FROM users WHERE id = ?
@@ -1213,6 +1236,214 @@ function buildWorkspaceInvitationEmail(data: any): string {
     <div class="footer">
       <p style="margin: 0;">This is an invitation from Workoto Task Manager</p>
       <p style="margin: 8px 0 0 0; color: #9ca3af;">Organize your team, track your progress!</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+function buildOnboardingInvitationEmail(data: any): string {
+  const { inviter_name, inviter_email, workspace_name, signup_link } = data;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1f2937;
+      background-color: #f9fafb;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      background-color: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+      color: white;
+      padding: 50px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 36px;
+      font-weight: 700;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .header p {
+      margin: 12px 0 0 0;
+      font-size: 18px;
+      opacity: 0.95;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    .invitation-box {
+      background: linear-gradient(135deg, #faf5ff 0%, #eff6ff 100%);
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+      text-align: center;
+      border: 2px solid #e9d5ff;
+    }
+    .inviter-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: #7c3aed;
+      margin: 16px 0;
+    }
+    .inviter-email {
+      font-size: 14px;
+      color: #6b7280;
+      margin: 8px 0 0 0;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+      color: white;
+      padding: 18px 48px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0;
+      box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3);
+      transition: transform 0.2s;
+    }
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(139, 92, 246, 0.4);
+    }
+    .features-list {
+      background: #f0fdf4;
+      border-radius: 12px;
+      padding: 30px;
+      margin: 30px 0;
+      border-left: 4px solid #10b981;
+    }
+    .features-list h3 {
+      color: #065f46;
+      margin: 0 0 20px 0;
+      font-size: 20px;
+    }
+    .features-list ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .features-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid #d1fae5;
+      display: flex;
+      align-items: center;
+    }
+    .features-list li:last-child {
+      border-bottom: none;
+    }
+    .check-icon {
+      color: #10b981;
+      font-weight: bold;
+      margin-right: 12px;
+      font-size: 20px;
+    }
+    .social-proof {
+      background: #fef3c7;
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+      text-align: center;
+      border: 2px solid #fcd34d;
+    }
+    .social-proof p {
+      margin: 0;
+      color: #78350f;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .footer {
+      background: #f3f4f6;
+      padding: 30px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="icon">🚀</div>
+      <h1>You've Been Invited!</h1>
+      <p>Join Workoto and boost your productivity</p>
+    </div>
+
+    <div class="content">
+      <div class="invitation-box">
+        <p style="margin: 0; font-size: 18px; color: #6b7280;">You've been invited by</p>
+        <div class="inviter-name">${inviter_name}</div>
+        <div class="inviter-email">${inviter_email}</div>
+        ${workspace_name ? `<p style="margin: 20px 0 0 0; font-size: 16px; color: #4b5563;">to join <strong>${workspace_name}</strong> workspace</p>` : ''}
+      </div>
+
+      <p style="font-size: 18px; line-height: 1.8; color: #374151;">
+        <strong>${inviter_name}</strong> is using <strong>Workoto</strong> to manage tasks, track time, and boost productivity.
+        They'd like you to join them for better team collaboration!
+      </p>
+
+      <div class="features-list">
+        <h3>✨ What You'll Get with Workoto:</h3>
+        <ul>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><strong>AI-Powered Task Management</strong> - Smart summaries and insights for every task</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><strong>Time Tracking</strong> - Know exactly where your time goes</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><strong>Team Collaboration</strong> - Shared workspaces for seamless teamwork</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><strong>Smart Notifications</strong> - Stay in the loop with customizable email alerts</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><strong>Productivity Reports</strong> - Track progress and optimize your workflow</span>
+          </li>
+        </ul>
+      </div>
+
+      <div style="text-align: center;">
+        <a href="${signup_link}" class="cta-button">
+          Join ${inviter_name} on Workoto →
+        </a>
+      </div>
+
+      <div class="social-proof">
+        <p>🎉 Early Adopter Plan - Free access to all features!</p>
+      </div>
+
+      <p style="font-size: 14px; color: #6b7280; text-align: center; margin-top: 30px;">
+        When you sign up, you'll automatically be added to ${inviter_name}'s workspace and can start collaborating immediately.
+      </p>
+    </div>
+
+    <div class="footer">
+      <p style="margin: 0; font-weight: 600;">Workoto - AI-Powered Task Management</p>
+      <p style="margin: 8px 0 0 0;">Organize your work, track your time, boost your productivity!</p>
     </div>
   </div>
 </body>

@@ -8,6 +8,7 @@ import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { NotificationPreferences } from './components/onboarding/NotificationPreferences';
+import { InviteColleagues } from './components/onboarding/InviteColleagues';
 import { SimpleSettings } from './components/SimpleSettings';
 import { Integrations } from './components/Integrations';
 import { AsanaImport } from './components/AsanaImport';
@@ -168,6 +169,7 @@ function TaskManager() {
 function AppContent() {
   const { isAuthenticated, isLoading, needsOnboarding, completeOnboarding } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<'notifications' | 'invites'>('notifications');
 
   if (isLoading) {
     return (
@@ -185,9 +187,23 @@ function AppContent() {
     return <LandingPage onGetStarted={() => setShowAuth(true)} />;
   }
 
-  // Show notification preferences if user needs onboarding
+  // Show onboarding flow if user needs onboarding
   if (needsOnboarding) {
-    return <NotificationPreferences onComplete={completeOnboarding} />;
+    if (onboardingStep === 'notifications') {
+      return (
+        <NotificationPreferences
+          onComplete={() => setOnboardingStep('invites')}
+        />
+      );
+    }
+
+    if (onboardingStep === 'invites') {
+      return (
+        <InviteColleagues
+          onComplete={completeOnboarding}
+        />
+      );
+    }
   }
 
   // Show main app with routes

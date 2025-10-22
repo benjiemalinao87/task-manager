@@ -15,6 +15,7 @@ import workspaces from './workers/workspaces';
 import invitations from './workers/invitations';
 import reports from './workers/reports';
 import chat from './workers/chat';
+import onboarding from './workers/onboarding';
 import { sendTestUpdateEmail, sendUpdateToAllUsers } from './workers/update-notifications';
 
 // Export Durable Object
@@ -53,6 +54,9 @@ app.route('/api/workspaces', reports);
 
 // Mount standalone invitation routes (for accepting/declining by token)
 app.route('/api/invitations', invitations);
+
+// Mount onboarding routes
+app.route('/api/onboarding', onboarding);
 
 // Mount chat routes
 app.route('/api/chat', chat);

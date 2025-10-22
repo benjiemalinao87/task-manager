@@ -148,6 +148,26 @@ class ApiClient {
     );
   }
 
+  // Onboarding methods
+  async sendOnboardingInvitations(data: { emails: string[] }) {
+    return this.post<{
+      success: boolean;
+      workspace: any;
+      results: Array<{ email: string; status: string; message: string }>;
+      message: string;
+    }>(
+      '/api/onboarding/invite-colleagues',
+      data
+    );
+  }
+
+  async completeOnboarding() {
+    return this.post<{ success: boolean; message: string }>(
+      '/api/onboarding/complete',
+      {}
+    );
+  }
+
   // Time sessions methods
   async getActiveSession() {
     return this.get<{ session: any | null }>('/api/time-sessions/active');

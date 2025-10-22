@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS settings (
   notify_daily_summary INTEGER DEFAULT 0,
   notify_weekly_summary INTEGER DEFAULT 0,
   onboarding_completed INTEGER DEFAULT 0,
+  onboarding_invites_sent INTEGER DEFAULT 0,
   invoice_module_enabled INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),

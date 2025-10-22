@@ -69,11 +69,62 @@ auth.post('/signup', async (c) => {
       VALUES (?, ?, ?, ?, ?)
     `).bind(generateId(), workspaceId, userId, 'owner', now).run();
 
+    // Check for pending invitations and auto-accept them (viral loop)
+    const pendingInvitations = await c.env.DB.prepare(`
+      SELECT id, workspace_id, role, invited_by, token
+      FROM workspace_invitations
+      WHERE email = ? AND status = 'pending'
+      AND datetime(expires_at) > datetime('now')
+    `).bind(email.toLowerCase()).all();
+
+    let autoJoinedWorkspaces = 0;
+    if (pendingInvitations.results && pendingInvitations.results.length > 0) {
+      for (const invitation of pendingInvitations.results) {
+        try {
+          // Check if not already a member
+          const existing = await c.env.DB.prepare(`
+            SELECT id FROM workspace_members
+            WHERE workspace_id = ? AND user_id = ?
+          `).bind(invitation.workspace_id, userId).first();
+
+          if (!existing) {
+            // Add user to the workspace
+            await c.env.DB.prepare(`
+              INSERT INTO workspace_members (id, workspace_id, user_id, role, invited_by, joined_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              generateId(),
+              invitation.workspace_id,
+              userId,
+              invitation.role,
+              invitation.invited_by,
+              now,
+              now
+            ).run();
+
+            // Mark invitation as accepted
+            await c.env.DB.prepare(`
+              UPDATE workspace_invitations
+              SET status = 'accepted'
+              WHERE id = ?
+            `).bind(invitation.id).run();
+
+            autoJoinedWorkspaces++;
+          }
+        } catch (error) {
+          console.error(`Failed to auto-accept invitation ${invitation.id}:`, error);
+        }
+      }
+    }
+
     return c.json({
       success: true,
       userId,
       workspaceId,
-      message: 'User created successfully with default workspace'
+      autoJoinedWorkspaces,
+      message: autoJoinedWorkspaces > 0
+        ? `User created successfully with default workspace and joined ${autoJoinedWorkspaces} shared workspace(s)`
+        : 'User created successfully with default workspace'
     }, 201);
 
   } catch (error) {

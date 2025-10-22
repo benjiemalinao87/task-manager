@@ -1,10 +1,19 @@
 # Cloudflare Workers Configuration
 # Task Manager API
+# NOTE: Only using development environment (task-manager-api-dev)
 
-name = "task-manager-api"
+name = "task-manager-api-dev"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Frontend URL for email links
+[vars]
+FRONTEND_URL = "https://www.workoto.app"
+
+# Custom domain (must be added via Cloudflare Dashboard):
+# Go to: Workers & Pages → task-manager-api-dev → Settings → Domains & Routes
+# Add custom domain: api.workoto.app
 
 # Durable Objects
 [[durable_objects.bindings]]
@@ -16,105 +25,38 @@ script_name = "task-manager-api-dev"
 tag = "v1"
 new_classes = ["ChatRoom"]
 
-# ===================================
-# DEVELOPMENT ENVIRONMENT
-# ===================================
-[env.development]
-name = "task-manager-api-dev"
-
-# Frontend URL for email links
-[env.development.vars]
-FRONTEND_URL = "https://www.workoto.app"
-
-# Custom domain (must be added via Cloudflare Dashboard):
-# Go to: Workers & Pages → task-manager-api-dev → Settings → Domains & Routes
-# Add custom domain: api.workoto.app
-
-# NOTE: Run these commands to set up:
-# 1. wrangler d1 create task-manager-dev
-# 2. wrangler kv:namespace create "KV" --env development
-# 3. wrangler queues create email-queue-dev
-# Then update the IDs below
-
-[[env.development.d1_databases]]
+# D1 Database
+[[d1_databases]]
 binding = "DB"
 database_name = "task-manager-dev"
 database_id = "83af6425-1a63-41f3-a722-46924438e7cc"
 
-[[env.development.kv_namespaces]]
+# KV Namespace
+[[kv_namespaces]]
 binding = "KV"
 id = "765c7311eb1a4e05be3ef67cc494bd41"
 
-[[env.development.queues.producers]]
+# Queue Producers
+[[queues.producers]]
 binding = "EMAIL_QUEUE"
 queue = "email-queue-dev"
 
-[[env.development.queues.producers]]
+[[queues.producers]]
 binding = "AI_QUEUE"
 queue = "ai-queue-dev"
 
-[[env.development.queues.consumers]]
+# Queue Consumers
+[[queues.consumers]]
 queue = "email-queue-dev"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 3
 
-[[env.development.queues.consumers]]
+[[queues.consumers]]
 queue = "ai-queue-dev"
 max_batch_size = 1
 max_batch_timeout = 5
 max_retries = 2
-
-[[env.development.durable_objects.bindings]]
-name = "CHAT_ROOM"
-class_name = "ChatRoom"
-script_name = "task-manager-api-dev"
-
-# ===================================
-# PRODUCTION ENVIRONMENT
-# ===================================
-[env.production]
-name = "task-manager-api"
-
-# Frontend URL for email links
-[env.production.vars]
-FRONTEND_URL = "https://www.workoto.app"
-
-# NOTE: Run these commands for production:
-# 1. wrangler d1 create task-manager-prod
-# 2. wrangler kv:namespace create "KV" --env production
-# 3. wrangler queues create email-queue-prod
-# Then update the IDs below
-
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "task-manager-dev"
-database_id = "83af6425-1a63-41f3-a722-46924438e7cc"  # Using dev DB for now
-
-[[env.production.kv_namespaces]]
-binding = "KV"
-id = "765c7311eb1a4e05be3ef67cc494bd41"  # Using dev KV for now
-
-[[env.production.queues.producers]]
-binding = "EMAIL_QUEUE"
-queue = "email-queue-dev"  # Using dev queue (shared with dev worker)
-
-[[env.production.queues.producers]]
-binding = "AI_QUEUE"
-queue = "ai-queue-dev"  # Using dev queue (shared with dev worker)
-
-[[env.production.durable_objects.bindings]]
-name = "CHAT_ROOM"
-class_name = "ChatRoom"
-script_name = "task-manager-api"
-
-# Note: Queue consumers are handled by dev worker
-# Both dev and prod workers can produce to these queues
-
-# Uncomment when you have a domain:
-# [[env.production.routes]]
-# pattern = "api.yourdomain.com/*"
-# zone_name = "yourdomain.com"
 
 # ===================================
 # SECRETS (set via: wrangler secret put <NAME>)

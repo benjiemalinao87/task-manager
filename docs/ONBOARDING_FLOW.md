@@ -1,8 +1,12 @@
-# User Onboarding Flow - Notification Preferences
+# User Onboarding Flow - Viral Loop with Invitations
 
 ## Overview
 
-After a user signs up, they are guided through a beautiful onboarding screen where they can choose which email notifications they want to receive. This creates a great first impression and lets users customize their experience from day one.
+After a user signs up, they are guided through a beautiful 2-step onboarding flow:
+1. **Notification Preferences** - Choose which email notifications to receive
+2. **Invite Colleagues** (NEW) - Invite team members to create a viral growth loop
+
+This creates a great first impression, lets users customize their experience, and drives organic user growth through team invitations.
 
 ---
 
@@ -19,21 +23,43 @@ After a user signs up, they are guided through a beautiful onboarding screen whe
           ↓
 3. Submits form
    - Account created in database
+   - Auto-joins any pending workspace invitations 🚀
    - Automatically logged in
    - JWT token stored
           ↓
-4. Notification Preferences Screen ✨ (NEW)
+4. Notification Preferences Screen (Step 1)
    - Choose notification types
    - Multi-select interface
    - Beautiful card-based UI
-          ↓
-5. Saves preferences
    - Settings saved to database
-   - onboarding_completed = 1
           ↓
-6. Main Task Manager App
+5. Invite Colleagues Screen ✨ (Step 2 - NEW)
+   - Enter up to 5 colleague emails
+   - Professional invitation emails sent
+   - Creates/uses user's workspace
+   - "Skip for Now" option available
+          ↓
+6. Marks onboarding as complete
+   - onboarding_completed = 1
+   - onboarding_invites_sent = 1 (if invites sent)
+          ↓
+7. Main Task Manager App
    - Can start creating tasks
    - Receives chosen notifications
+   - Can collaborate in shared workspaces
+
+VIRAL LOOP 🔄:
+   ↓
+8. Invited colleagues receive email
+   - Professional, customized invitation
+   - Shows inviter's name and workspace
+   - One-click signup link
+          ↓
+9. Invited user signs up
+   - Automatically joins inviter's workspace
+   - Goes through same onboarding flow
+   - Can invite more colleagues
+   - Cycle repeats! 🚀
 ```
 
 ---
@@ -371,6 +397,65 @@ cd .. && npm run dev
 
 ---
 
+## 🔄 Viral Loop Feature (NEW)
+
+### How It Works
+
+**Step 1: User Invites Colleagues**
+- During onboarding (Step 2), users can invite up to 5 colleagues
+- System automatically creates or uses user's workspace
+- Professional invitation emails sent with inviter's name
+- Invitations stored in database with 7-day expiration
+
+**Step 2: Invitation Email**
+The invited colleague receives a beautiful, professional email featuring:
+- Inviter's name and email
+- Workspace name they'll join
+- Benefits of using Workoto
+- One-click signup link
+- "Early Adopter Plan" badge
+
+**Step 3: Auto-Workspace Join**
+When an invited user signs up:
+- System checks for pending invitations matching their email
+- Automatically accepts all valid invitations
+- User joins the inviter's workspace immediately
+- No manual invitation acceptance needed
+- User can see both their own workspace and shared workspaces
+
+**Step 4: Cycle Repeats**
+- The invited user goes through the same onboarding
+- They can invite their own colleagues
+- Creates exponential growth potential
+- Each cohort brings in the next cohort
+
+### Viral Coefficient Calculation
+
+```
+Viral Coefficient (K) = Invitations Sent × Conversion Rate
+
+Example:
+- If each user invites 3 colleagues on average (60% send 5 invites)
+- And 30% of invited users sign up
+- K = 3 × 0.30 = 0.9
+
+To achieve K > 1 (viral growth):
+- Target: 4 invites × 30% conversion = 1.2 (20% organic growth per cycle)
+- Or: 3 invites × 35% conversion = 1.05 (5% organic growth per cycle)
+```
+
+### Database Schema
+
+**New Field in Settings:**
+```sql
+onboarding_invites_sent INTEGER DEFAULT 0  -- Track if user sent invites
+```
+
+**Workspace Invitations Table:**
+Used to track invitations and auto-join on signup.
+
+---
+
 ## 🎯 Benefits
 
 ### For Users
@@ -378,12 +463,17 @@ cd .. && npm run dev
 ✅ **Transparency:** Clear descriptions of each notification type
 ✅ **Flexibility:** Can change preferences anytime
 ✅ **No Spam:** Only get emails they want
+✅ **Team Collaboration:** Easy to invite colleagues and work together
+✅ **Seamless Onboarding:** Invited users auto-join workspaces
 
 ### For Platform
 ✅ **Engagement:** Higher email open rates (opted-in)
 ✅ **Retention:** Better first impression
 ✅ **Compliance:** GDPR-friendly explicit consent
 ✅ **Scalability:** Easy to add new notification types
+✅ **Viral Growth:** Built-in referral loop drives organic user acquisition
+✅ **Network Effects:** Teams stay longer than individual users
+✅ **Higher Lifetime Value:** Team plans convert better than individual plans
 
 ---
 
@@ -425,15 +515,28 @@ cd .. && npm run dev
 
 ### Onboarding Metrics
 - Signup → Notification Preferences completion rate
-- Skip rate vs Save rate
+- Notification step → Invite step completion rate
+- Skip rate vs Invite rate
 - Most popular notification combinations
-- Time spent on notification preferences screen
+- Time spent on each onboarding screen
+- Average number of invitations sent per user
+- Percentage of users who send at least 1 invitation
+
+### Viral Loop Metrics (NEW)
+- **Invitation Sent Rate:** % of users who send invites during onboarding
+- **Average Invites Per User:** Total invites / total users
+- **Invitation Conversion Rate:** Invited users who sign up / total invites
+- **Viral Coefficient (K):** Invites per user × Conversion rate
+- **Cycle Time:** Days from invite sent to invited user signup
+- **Multi-Generation Tracking:** Track invitation chains (User A → User B → User C)
+- **Workspace Growth Rate:** New members joining per workspace per week
 
 ### Engagement Metrics
 - Email open rates by notification type
-- Click-through rates
+- Click-through rates on invitation emails
 - Users who disable notifications later
 - Correlation between notifications and task completion
+- Workspace activity rates (invited vs organic users)
 
 ### SQL Queries
 
@@ -450,7 +553,7 @@ WHERE users.created_at >= datetime('now', '-30 days');
 
 **Most popular notification combinations:**
 ```sql
-SELECT 
+SELECT
   notify_task_created,
   notify_task_completed,
   notify_daily_summary,
@@ -461,6 +564,86 @@ WHERE onboarding_completed = 1
 GROUP BY notify_task_created, notify_task_completed, notify_daily_summary, notify_weekly_summary
 ORDER BY user_count DESC
 LIMIT 10;
+```
+
+**Viral Loop Metrics (NEW):**
+
+**Invitation sent rate:**
+```sql
+SELECT
+  COUNT(*) as total_users,
+  SUM(CASE WHEN onboarding_invites_sent = 1 THEN 1 ELSE 0 END) as users_who_invited,
+  ROUND(SUM(CASE WHEN onboarding_invites_sent = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as invitation_rate_percent
+FROM settings
+WHERE onboarding_completed = 1;
+```
+
+**Average invitations per user:**
+```sql
+SELECT
+  COUNT(DISTINCT invited_by) as users_who_invited,
+  COUNT(*) as total_invitations,
+  ROUND(CAST(COUNT(*) AS REAL) / COUNT(DISTINCT invited_by), 2) as avg_invites_per_user
+FROM workspace_invitations
+WHERE created_at >= datetime('now', '-30 days');
+```
+
+**Invitation conversion rate:**
+```sql
+SELECT
+  COUNT(*) as total_invitations,
+  SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) as accepted,
+  ROUND(SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as conversion_rate_percent
+FROM workspace_invitations
+WHERE created_at >= datetime('now', '-30 days');
+```
+
+**Viral coefficient (K):**
+```sql
+WITH invite_stats AS (
+  SELECT
+    ROUND(CAST(COUNT(*) AS REAL) / COUNT(DISTINCT invited_by), 2) as avg_invites_per_user,
+    ROUND(SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) * 1.0 / COUNT(*), 4) as conversion_rate
+  FROM workspace_invitations
+  WHERE created_at >= datetime('now', '-30 days')
+)
+SELECT
+  avg_invites_per_user,
+  conversion_rate,
+  ROUND(avg_invites_per_user * conversion_rate, 3) as viral_coefficient_k,
+  CASE
+    WHEN ROUND(avg_invites_per_user * conversion_rate, 3) > 1 THEN '🚀 Viral Growth!'
+    WHEN ROUND(avg_invites_per_user * conversion_rate, 3) > 0.8 THEN '📈 Near Viral'
+    ELSE '📊 Sub-Viral'
+  END as growth_status
+FROM invite_stats;
+```
+
+**Invitation chain tracking:**
+```sql
+-- Track who invited whom (generation 1 and 2)
+WITH invited_users AS (
+  SELECT
+    wi.invited_by as inviter_id,
+    u_inviter.email as inviter_email,
+    wi.email as invited_email,
+    u_invited.id as invited_user_id,
+    wi.status,
+    wi.created_at
+  FROM workspace_invitations wi
+  LEFT JOIN users u_inviter ON wi.invited_by = u_inviter.id
+  LEFT JOIN users u_invited ON wi.email = u_invited.email
+  WHERE wi.created_at >= datetime('now', '-30 days')
+)
+SELECT
+  inviter_email,
+  COUNT(*) as people_invited,
+  SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) as signups,
+  GROUP_CONCAT(invited_email, ', ') as invited_emails
+FROM invited_users
+GROUP BY inviter_id, inviter_email
+ORDER BY people_invited DESC
+LIMIT 20;
 ```
 
 ---
