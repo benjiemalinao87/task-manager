@@ -15,6 +15,7 @@ import workspaces from './workers/workspaces';
 import invitations from './workers/invitations';
 import reports from './workers/reports';
 import chat from './workers/chat';
+import { sendTestUpdateEmail, sendUpdateToAllUsers } from './workers/update-notifications';
 
 // Export Durable Object
 export { ChatRoom } from './durable-objects/ChatRoom';
@@ -55,6 +56,10 @@ app.route('/api/invitations', invitations);
 
 // Mount chat routes
 app.route('/api/chat', chat);
+
+// Update notification routes
+app.post('/api/send-test-update-email', sendTestUpdateEmail);
+app.post('/api/send-update-to-all-users', sendUpdateToAllUsers);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

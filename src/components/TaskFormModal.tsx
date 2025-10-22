@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, AlertCircle, AlertTriangle, Flame, FileText, ExternalLink, Users } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useToast } from '../context/ToastContext';
 import {
   Select,
   SelectContent,
@@ -27,6 +28,7 @@ interface AsanaWorkspace {
 
 export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
   const { currentWorkspace } = useWorkspace();
+  const { showSuccess, showError } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingEmoji, setLoadingEmoji] = useState('');
@@ -38,8 +40,11 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
     taskLink: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     asanaProjectId: '',
-    assignedTo: '',
+    assignedTo: 'unassigned',
   });
+  
+  // Smart defaults and suggestions
+  const [suggestedTimes] = useState(['15 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '1 day']);
 
   // Team collaboration state
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
@@ -55,11 +60,20 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
   // Load workspace members for team collaboration
   useEffect(() => {
     const loadWorkspaceMembers = async () => {
-      if (!currentWorkspace?.id) return;
+      console.log('Current workspace:', currentWorkspace);
+      if (!currentWorkspace?.id) {
+        console.log('No workspace ID found');
+        return;
+      }
       
       setIsLoadingMembers(true);
       try {
-        const members = await apiClient.getWorkspaceMembers(currentWorkspace.id);
+        console.log('Loading workspace members for workspace:', currentWorkspace.id);
+        const response = await apiClient.getWorkspaceMembers(currentWorkspace.id);
+        console.log('Workspace members response:', response);
+        const members = response.members || [];
+        console.log('Workspace members array:', members);
+        console.log('First member structure:', members[0]);
         setWorkspaceMembers(members);
       } catch (error) {
         console.error('Error loading workspace members:', error);
@@ -135,6 +149,24 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+
+  const getSmartSuggestions = (taskName: string) => {
+    const name = taskName.toLowerCase();
+    if (name.includes('urgent') || name.includes('fix') || name.includes('bug')) {
+      return { priority: 'urgent', time: '30 minutes' };
+    }
+    if (name.includes('research') || name.includes('study')) {
+      return { priority: 'low', time: '1 hour' };
+    }
+    if (name.includes('meeting') || name.includes('call')) {
+      return { priority: 'medium', time: '30 minutes' };
+    }
+    if (name.includes('review') || name.includes('check')) {
+      return { priority: 'medium', time: '15 minutes' };
+    }
+    return { priority: 'medium', time: '30 minutes' };
+  };
+
   const startGamifiedLoading = () => {
     const loadingSequence = [
       { text: 'workoto...', emoji: '🚀', color: 'text-blue-600' },
@@ -165,7 +197,7 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
     e.preventDefault();
     
     if (!formData.taskName.trim()) {
-      alert('Please enter a task name');
+      showError('Task Name Required', 'Please enter a task name to continue.');
       return;
     }
 
@@ -179,10 +211,12 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
         taskLink: formData.taskLink.trim(),
         priority: formData.priority,
         workspaceId: currentWorkspace?.id,
-        assignedTo: formData.assignedTo || undefined,
+        assignedTo: formData.assignedTo && formData.assignedTo !== 'unassigned' ? formData.assignedTo : undefined,
         asanaProjectId: formData.asanaProjectId || undefined,
       };
 
+      console.log('Submitting task with data:', taskData);
+      console.log('Assigned to user ID:', taskData.assignedTo);
       await apiClient.createTaskWithAssignment(taskData);
       
       // Wait for the animation to complete before closing
@@ -191,7 +225,7 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
       }, 2000);
     } catch (error: any) {
       console.error('Error creating task:', error);
-      alert(error.message || 'Failed to create task');
+      showError('Task Creation Failed', error.message || 'Failed to create task. Please try again.');
       if (loadingInterval) {
         clearInterval(loadingInterval);
         setLoadingInterval(null);
@@ -264,9 +298,10 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Task Name */}
+        {/* Modal Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+
+          {/* Task Name with Smart Suggestions */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Task Name *
@@ -274,11 +309,29 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
             <input
               type="text"
               value={formData.taskName}
-              onChange={(e) => handleInputChange('taskName', e.target.value)}
+              onChange={(e) => {
+                handleInputChange('taskName', e.target.value);
+                // Auto-suggest based on task name
+                if (e.target.value.length > 3) {
+                  const suggestions = getSmartSuggestions(e.target.value);
+                  if (suggestions.priority !== formData.priority || suggestions.time !== formData.estimatedTime) {
+                    setFormData(prev => ({
+                      ...prev,
+                      priority: suggestions.priority,
+                      estimatedTime: suggestions.time
+                    }));
+                  }
+                }
+              }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter task name..."
+              placeholder="What needs to be done?"
               required
             />
+            {formData.taskName.length > 3 && (
+              <div className="mt-2 text-xs text-blue-600">
+                💡 Smart suggestion: {getSmartSuggestions(formData.taskName).priority} priority, {getSmartSuggestions(formData.taskName).time}
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -290,9 +343,14 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Describe the task..."
+              placeholder="Describe the task... (optional but helpful for context)"
               rows={3}
+              maxLength={500}
             />
+            <div className="mt-1 flex justify-between text-xs text-gray-500">
+              <span>💡 Add context to help you remember what this task involves</span>
+              <span>{formData.description.length}/500</span>
+            </div>
           </div>
 
           {/* Priority and Estimated Time Row */}
@@ -345,6 +403,22 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="30 minutes"
               />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggestedTimes.map((time, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleInputChange('estimatedTime', time)}
+                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                      formData.estimatedTime === time
+                        ? 'bg-blue-100 border-blue-300 text-blue-700'
+                        : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {time}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -358,37 +432,47 @@ export function TaskFormModal({ onTaskCreated, onClose }: TaskFormModalProps) {
               <input
                 type="url"
                 value={formData.taskLink}
-                onChange={(e) => handleInputChange('taskLink', e.target.value)}
+                onChange={(e) => {
+                  let value = e.target.value;
+                  // Auto-add https:// if user types a domain without protocol
+                  if (value && !value.startsWith('http') && !value.startsWith('mailto:') && value.includes('.')) {
+                    value = 'https://' + value;
+                  }
+                  handleInputChange('taskLink', value);
+                }}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="https://example.com/task"
               />
             </div>
+            {formData.taskLink && (
+              <div className="mt-1 text-xs text-gray-500">
+                🔗 Link will open in new tab when task is viewed
+              </div>
+            )}
           </div>
 
           {/* Team Assignment */}
-          {workspaceMembers.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assign To
-              </label>
-              <Select value={formData.assignedTo} onValueChange={(value) => handleInputChange('assignedTo', value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select team member..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
-                  {workspaceMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        {member.name || member.email}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Assign To
+            </label>
+            <Select value={formData.assignedTo} onValueChange={(value) => handleInputChange('assignedTo', value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={isLoadingMembers ? "Loading members..." : "Select team member..."} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {workspaceMembers && Array.isArray(workspaceMembers) && workspaceMembers.map((member) => (
+                  <SelectItem key={member.id} value={member.user_id || member.id}>
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      {member.name || member.email}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Asana Integration */}
           {asanaIntegration && (

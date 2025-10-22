@@ -6,6 +6,9 @@ import { formatDateTimePST } from '../lib/dateUtils';
 import { StatusSelector } from './StatusSelector';
 import { StatusBadge } from './StatusBadge';
 import { TaskStatus } from '../lib/statusConstants';
+import { useToast } from '../context/ToastContext';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface Task {
   id: string;
@@ -29,6 +32,8 @@ interface Task {
 export function TaskDetailView() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
+  const { confirm, isOpen, options, onConfirm, onCancel } = useConfirmation();
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
@@ -191,9 +196,17 @@ export function TaskDetailView() {
   };
 
   const handleDeleteTask = async () => {
-    if (!task || !confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
-      return;
-    }
+    if (!task) return;
+    
+    const confirmed = await confirm({
+      title: 'Delete Task',
+      message: 'Are you sure you want to delete this task? This action cannot be undone.',
+      confirmText: 'Delete Task',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    
+    if (!confirmed) return;
 
     setDeletingTaskId(task.id);
 
@@ -203,11 +216,11 @@ export function TaskDetailView() {
       // Clean up pause state from localStorage
       localStorage.removeItem(`task_pause_${task.id}`);
 
-      alert('Task deleted successfully!');
+      showSuccess('Task Deleted', 'Task has been successfully deleted!');
       navigate('/');
     } catch (error) {
       console.error('Error deleting task:', error);
-      alert('Failed to delete task. Please try again.');
+      showError('Delete Failed', 'Failed to delete task. Please try again.');
     } finally {
       setDeletingTaskId(null);
     }
@@ -253,11 +266,11 @@ export function TaskDetailView() {
 
       setShowNoteInput(false);
       setNoteText('');
-      alert('Task completed successfully!');
+      showSuccess('Task Completed!', 'Great job! Your task has been completed successfully.');
       navigate('/');
     } catch (error) {
       console.error('Error completing task:', error);
-      alert('Failed to complete task. Please try again.');
+      showError('Completion Failed', 'Failed to complete task. Please try again.');
     } finally {
       setCompletingTaskId(null);
     }
@@ -275,7 +288,7 @@ export function TaskDetailView() {
       setTask({ ...task, status: newStatus });
     } catch (error) {
       console.error('Error updating task status:', error);
-      alert('Failed to update task status. Please try again.');
+      showError('Update Failed', 'Failed to update task status. Please try again.');
     }
   };
 
@@ -539,6 +552,18 @@ export function TaskDetailView() {
           </div>
         </div>
       </div>
+      
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isOpen}
+        onClose={onCancel || (() => {})}
+        onConfirm={onConfirm || (() => {})}
+        title={options?.title || ''}
+        message={options?.message || ''}
+        confirmText={options?.confirmText}
+        cancelText={options?.cancelText}
+        type={options?.type}
+      />
     </div>
   );
 }

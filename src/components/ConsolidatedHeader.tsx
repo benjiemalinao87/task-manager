@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CheckSquare, Clock, Play, Square, Settings, LogOut, BarChart3, Download, MoreHorizontal } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
+import { useToast } from '../context/ToastContext';
 
 interface ConsolidatedHeaderProps {
   user: any;
@@ -21,6 +22,7 @@ export function ConsolidatedHeader({
   canViewTeamFeatures = false,
   hasAsanaIntegration = false 
 }: ConsolidatedHeaderProps) {
+  const { showSuccess, showError } = useToast();
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [clockInTime, setClockInTime] = useState<Date | null>(null);
@@ -72,7 +74,7 @@ export function ConsolidatedHeader({
       setIsClockedIn(true);
     } catch (error: any) {
       console.error('Error clocking in:', error);
-      alert(error.message || 'Failed to clock in');
+      showError('Clock In Failed', error.message || 'Failed to clock in. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -90,10 +92,10 @@ export function ConsolidatedHeader({
       
       const hours = Math.floor(durationMinutes / 60);
       const mins = durationMinutes % 60;
-      alert(`Clocked out! Duration: ${hours}h ${mins}m`);
+      showSuccess('Clocked Out!', `Great work! Duration: ${hours}h ${mins}m`);
     } catch (error: any) {
       console.error('Error clocking out:', error);
-      alert(error.message || 'Failed to clock out');
+      showError('Clock Out Failed', error.message || 'Failed to clock out. Please try again.');
     } finally {
       setIsProcessing(false);
     }
