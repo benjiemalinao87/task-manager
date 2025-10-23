@@ -3,12 +3,15 @@
 ## Overview
 Automatically detects user inactivity and pauses time tracking to ensure accurate time logs. This feature helps prevent inflated time tracking when users step away from their computer.
 
+**NEW:** Now includes **cross-tab activity tracking** via WebSocket! Activity detected in any open tab of the application will keep timers running across all tabs.
+
 ## Features
 
 ### 1. **Inactivity Detection**
 - Monitors mouse movement, keyboard input, clicks, scrolls, and touch events
 - Tracks tab visibility (detects when user switches to another tab)
-- Configurable idle timeout (default: 5 minutes)
+- **Cross-tab activity synchronization via WebSocket**
+- Configurable idle timeout (default: 2 minutes)
 
 ### 2. **User Prompt System**
 - Shows friendly modal asking "Are you still working?"
@@ -38,9 +41,11 @@ Automatically detects user inactivity and pauses time tracking to ensure accurat
 **Features:**
 - Tracks user activity events (mouse, keyboard, scroll, touch)
 - Monitors Page Visibility API for tab switching
-- Throttled event handling (1 event per second max)
+- **Cross-tab activity synchronization via WebSocket**
+- Throttled event handling (1 event per second max for local, 5 seconds for heartbeats)
 - Configurable timeouts
 - Callback system for idle/active/timeout events
+- Unique tab ID generation for identifying different browser tabs
 
 **Usage:**
 ```typescript
@@ -49,12 +54,14 @@ const {
   confirmActivity,
   pauseTracking,
 } = useActivityTracker({
-  idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
+  idleTimeoutMs: 2 * 60 * 1000, // 2 minutes
   promptTimeoutMs: 60 * 1000, // 1 minute  
   enabled: isClockedIn && !isPaused,
   onIdle: () => console.log('User idle'),
   onActive: () => console.log('User active'),
   onPromptTimeout: () => handlePause(),
+  sendActivityHeartbeat: (tabId) => sendHeartbeat(tabId), // NEW: Send to other tabs
+  onActivityBroadcast: (callback) => registerCallback(callback), // NEW: Receive from other tabs
 });
 ```
 
@@ -85,6 +92,42 @@ interface ActivityPromptProps {
 - Automatically calls pause API when timeout expires
 - Shows success/error toasts for user feedback
 - Logs activity events to console for debugging
+- Receives WebSocket functions from parent component for cross-tab tracking
+
+#### 4. `useChatWebSocket` Hook (Extended for Activity Tracking)
+**Location:** `src/hooks/useChatWebSocket.ts`
+
+**New Features for Activity Tracking:**
+- `sendActivityHeartbeat(tabId)` - Sends activity heartbeat to ChatRoom Durable Object
+- `onActivityBroadcast(callback)` - Registers callback to receive activity from other tabs
+- Handles `activity_heartbeat` and `activity_broadcast` message types
+
+**How It Works:**
+1. Each browser tab has a unique `tabId` (generated via `crypto.randomUUID()`)
+2. When local activity is detected, the tab sends a heartbeat message via WebSocket
+3. The ChatRoom Durable Object broadcasts the activity to all other tabs of the same user
+4. Other tabs receive the broadcast and reset their idle timers
+5. This keeps all tabs synchronized - activity in one tab prevents auto-pause in all tabs
+
+### Backend Components
+
+#### ChatRoom Durable Object (Extended)
+**Location:** `cloudflare-workers/src/durable-objects/ChatRoom.ts`
+
+**New Features:**
+- Tracks `tabId` for each WebSocket session
+- Handles `activity_heartbeat` message type
+- New method: `broadcastToUserTabs()` - broadcasts only to tabs of a specific user
+- Filters broadcasts to exclude the sender tab (prevents echo loops)
+
+**Message Flow:**
+```
+Tab 1 (User types) → activity_heartbeat → ChatRoom DO
+                                              ↓
+                              activity_broadcast → Tab 2, Tab 3 (same user)
+                                              ↓
+                              All tabs reset idle timer
+```
 
 ### Backend API Endpoints
 
@@ -251,14 +294,25 @@ CREATE TABLE activity_settings (
 
 ## User Flow
 
+### Single Tab Flow
 1. **User clocks in** → Activity tracking starts
 2. **User works actively** → Timer runs normally
-3. **User becomes idle (5 min)** → Prompt appears
+3. **User becomes idle (2 min)** → Prompt appears
 4. **Countdown starts (60 sec)** → User has time to respond
 5. **Two outcomes:**
    - **User clicks "Continue"** → Tracking continues, prompt dismissed
    - **Timeout expires** → Auto-pause, session paused, notification shown
 6. **User returns** → Clicks "Resume" to continue tracking
+
+### Multi-Tab Flow (NEW)
+1. **User has app open in multiple tabs** (e.g., Tab A: Tasks, Tab B: Reports)
+2. **User works in Tab B** → Activity detected
+3. **Tab B sends heartbeat** → Via WebSocket to ChatRoom
+4. **ChatRoom broadcasts** → Activity message to Tab A
+5. **Tab A receives broadcast** → Resets its idle timer
+6. **Result:** Timer stays active in all tabs as long as user is active in ANY tab
+
+**Key Benefit:** Users can work across multiple tabs/windows of the app without timers pausing!
 
 ## Benefits
 
@@ -267,6 +321,7 @@ CREATE TABLE activity_settings (
 - ✅ **Flexible** - Can continue working if actively engaged
 - ✅ **Transparent** - Clear prompts and notifications
 - ✅ **Non-intrusive** - Only appears when truly idle
+- ✅ **Multi-tab support** - Work across multiple tabs without interruption (NEW)
 
 ### For Admins/Managers
 - ✅ **Reliable data** - Activity logs show true work patterns
@@ -277,10 +332,12 @@ CREATE TABLE activity_settings (
 ## Configuration
 
 ### Default Settings
-- **Idle timeout:** 5 minutes
+- **Idle timeout:** 2 minutes
 - **Prompt timeout:** 60 seconds
 - **Activity tracking:** Enabled
 - **Tab visibility tracking:** Enabled
+- **Cross-tab tracking:** Enabled (automatic via WebSocket)
+- **Heartbeat throttle:** 5 seconds (prevents excessive WebSocket messages)
 - **Auto-pause notifications:** Enabled
 
 ### Customization
@@ -293,13 +350,24 @@ Users can adjust settings via API or (future) Settings UI:
 ## Testing
 
 ### Manual Testing Steps
+
+#### Single Tab Testing
 1. Clock in to start a session
-2. Wait 5 minutes without interacting with the page
+2. Wait 2 minutes without interacting with the page
 3. Verify prompt appears with countdown
 4. Click "Yes, I'm Still Working" → verify tracking continues
-5. Wait 5 minutes again
+5. Wait 2 minutes again
 6. Let countdown expire → verify auto-pause occurs
 7. Check database for activity logs
+
+#### Multi-Tab Testing (NEW)
+1. Open the app in **two separate browser tabs** (Tab A and Tab B)
+2. Clock in from Tab A
+3. Switch to Tab B and verify timer is running
+4. **Stay in Tab B** and don't interact for 2 minutes
+5. **While still in Tab B**, move your mouse or type in Tab A
+6. **Expected:** Tab B should NOT show the idle prompt (because Tab A had activity)
+7. Check console logs in both tabs to see heartbeat messages
 
 ### Console Logs
 The system logs activity events to console:
@@ -308,6 +376,9 @@ The system logs activity events to console:
 - `⏸️ Auto-pausing due to inactivity`
 - `👁️ Tab hidden - pausing activity tracking`
 - `👁️ Tab visible - resuming activity tracking`
+- `🆔 Tab ID: [unique-id]` (NEW)
+- `💓 Sending activity heartbeat to other tabs` (NEW)
+- `🔄 Activity received from another tab: [tab-id]` (NEW)
 
 ## API Client Methods
 
@@ -379,8 +450,22 @@ await apiClient.updateActivitySettings({
 ### Issue: Prompt appears too quickly/slowly
 **Solution:**
 - Adjust `idleTimeoutMs` in useActivityTracker configuration
-- Default is 5 minutes (300,000ms)
+- Default is 2 minutes (120,000ms)
 - Can be customized per user via settings
+
+### Issue: Cross-tab tracking not working (NEW)
+**Check:**
+- Is WebSocket connected? (Check `isConnected` in console)
+- Are both tabs in the same workspace?
+- Check console for heartbeat messages (`💓 Sending activity heartbeat`)
+- Verify ChatRoom Durable Object is receiving messages
+- Ensure `sendActivityHeartbeat` and `onActivityBroadcast` props are passed to `useActivityTracker`
+
+### Issue: Too many WebSocket messages
+**Note:**
+- Heartbeats are throttled to once every 5 seconds per tab
+- This prevents excessive network traffic
+- If you see more frequent messages, check the throttling logic in `useActivityTracker`
 
 ## Security & Privacy
 
@@ -439,6 +524,36 @@ The Activity Tracking feature provides:
 - ✅ Non-intrusive UX
 - ✅ Configurable settings
 - ✅ Analytics-ready data
+- ✅ **Cross-tab activity synchronization via WebSocket (NEW)**
+- ✅ **Seamless multi-tab workflow support (NEW)**
 
-This ensures users have accurate time logs while maintaining a smooth, transparent user experience.
+This ensures users have accurate time logs while maintaining a smooth, transparent user experience. The new cross-tab tracking feature allows users to work across multiple tabs of the application without their timers pausing unexpectedly.
+
+## Limitations & Future Improvements
+
+### Current Limitations
+- **Browser-only tracking:** Activity is only tracked within the browser where the app is open
+- **Same-app tabs only:** Cross-tab tracking only works between tabs of this application
+- **No system-level tracking:** Cannot detect activity in other applications (Excel, Word, etc.)
+- **No cross-browser tracking:** Activity in Chrome won't sync to Firefox tabs
+
+### Comparison with Desktop Apps (e.g., Hubstaff)
+Desktop time tracking applications like Hubstaff can track:
+- System-wide mouse/keyboard activity
+- Active application windows
+- Screenshots (optional)
+- Activity across all applications
+
+Our web-based solution provides:
+- ✅ No installation required
+- ✅ Works on any device with a browser
+- ✅ Cross-tab synchronization within the app
+- ❌ Cannot track activity outside the browser
+- ❌ Cannot track activity in other applications
+
+### Potential Future Solutions
+1. **Browser Extension:** Could enable cross-tab tracking across all browser tabs (not just our app)
+2. **Desktop Application:** Using Electron/Tauri for system-level activity tracking
+3. **Hybrid Approach:** Optional desktop agent for power users who need full system tracking
+4. **Mobile Apps:** Native iOS/Android apps with background tracking capabilities
 

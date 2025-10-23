@@ -8,6 +8,8 @@ interface ActivityTrackerOptions {
   onActive?: () => void; // Callback when user becomes active
   onPromptTimeout?: () => void; // Callback when prompt times out
   enabled?: boolean; // Whether tracking is enabled
+  sendActivityHeartbeat?: (tabId: string) => void; // Function to send heartbeat via WebSocket
+  onActivityBroadcast?: (callback: (data: { fromTabId: string; timestamp: number }) => void) => void; // Register callback for activity from other tabs
 }
 
 interface ActivityTrackerState {
@@ -23,6 +25,7 @@ interface ActivityTrackerState {
  * Features:
  * - Tracks mouse movement, keyboard input, clicks, touch events
  * - Detects when user switches tabs (Page Visibility API)
+ * - Cross-tab activity tracking via WebSocket
  * - Shows prompt after idle timeout
  * - Auto-pauses after prompt timeout
  * - Logs activity to console for debugging
@@ -35,6 +38,8 @@ export function useActivityTracker(options: ActivityTrackerOptions = {}) {
     onActive,
     onPromptTimeout,
     enabled = true,
+    sendActivityHeartbeat,
+    onActivityBroadcast,
   } = options;
 
   const [state, setState] = useState<ActivityTrackerState>({
@@ -49,11 +54,14 @@ export function useActivityTracker(options: ActivityTrackerOptions = {}) {
   const promptTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<Date>(new Date());
   const isInitializedRef = useRef(false);
+  const tabIdRef = useRef<string>(crypto.randomUUID()); // Unique ID for this tab
+  const lastHeartbeatRef = useRef<number>(0); // Timestamp of last heartbeat sent
 
   // Stable callback refs
   const onIdleRef = useRef(onIdle);
   const onActiveRef = useRef(onActive);
   const onPromptTimeoutRef = useRef(onPromptTimeout);
+  const sendActivityHeartbeatRef = useRef(sendActivityHeartbeat);
 
   // Update callback refs when they change
   useEffect(() => {
@@ -68,9 +76,14 @@ export function useActivityTracker(options: ActivityTrackerOptions = {}) {
     onPromptTimeoutRef.current = onPromptTimeout;
   }, [onPromptTimeout]);
 
+  useEffect(() => {
+    sendActivityHeartbeatRef.current = sendActivityHeartbeat;
+  }, [sendActivityHeartbeat]);
+
   // Debug: Log when enabled state changes
   useEffect(() => {
     console.log('🔧 Activity tracker enabled:', enabled);
+    console.log('🆔 Tab ID:', tabIdRef.current);
   }, [enabled]);
 
   // Log activity to database
@@ -104,6 +117,14 @@ export function useActivityTracker(options: ActivityTrackerOptions = {}) {
 
     const now = new Date();
     lastActivityRef.current = now;
+
+    // Send heartbeat to other tabs via WebSocket (throttled to every 5 seconds)
+    const currentTime = Date.now();
+    if (sendActivityHeartbeatRef.current && currentTime - lastHeartbeatRef.current > 5000) {
+      console.log('💓 Sending activity heartbeat to other tabs');
+      sendActivityHeartbeatRef.current(tabIdRef.current);
+      lastHeartbeatRef.current = currentTime;
+    }
 
     // Clear existing timers
     clearTimers();
@@ -180,6 +201,20 @@ export function useActivityTracker(options: ActivityTrackerOptions = {}) {
     }));
     onPromptTimeoutRef.current?.();
   }, [clearTimers]);
+
+  // Register callback for activity broadcasts from other tabs
+  useEffect(() => {
+    if (!enabled || !onActivityBroadcast) return;
+
+    onActivityBroadcast((data) => {
+      // Ignore our own broadcasts (shouldn't happen, but safety check)
+      if (data.fromTabId === tabIdRef.current) return;
+
+      console.log('🔄 Activity received from another tab:', data.fromTabId);
+      // Reset our idle timer since activity was detected in another tab
+      resetActivityTimer();
+    });
+  }, [enabled, onActivityBroadcast, resetActivityTimer]);
 
   // Handle visibility change (tab switching)
   useEffect(() => {

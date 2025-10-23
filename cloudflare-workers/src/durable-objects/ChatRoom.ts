@@ -5,6 +5,7 @@ interface Session {
   userId: string;
   userName: string;
   workspaceId: string;
+  tabId?: string; // Unique identifier for each browser tab
   quit?: boolean;
   blockedMessages?: string[];
 }
@@ -125,8 +126,9 @@ export class ChatRoom extends DurableObject {
     const userId = url.searchParams.get("userId") || "anonymous";
     const userName = url.searchParams.get("userName") || "Anonymous";
     const workspaceId = url.searchParams.get("workspaceId") || "";
+    const tabId = url.searchParams.get("tabId") || crypto.randomUUID(); // Get tabId or generate one
 
-    console.log(`[ChatRoom] User connecting: ${userName} (${userId}) to workspace: ${workspaceId}`);
+    console.log(`[ChatRoom] User connecting: ${userName} (${userId}) to workspace: ${workspaceId}, tabId: ${tabId}`);
     console.log(`[ChatRoom] Current online users before add:`, Array.from(this.onlineUsers.keys()));
     console.log(`[ChatRoom] Current sessions count:`, this.sessions.length);
 
@@ -136,6 +138,7 @@ export class ChatRoom extends DurableObject {
       userId,
       userName,
       workspaceId,
+      tabId,
       blockedMessages: []
     };
 
@@ -212,6 +215,18 @@ export class ChatRoom extends DurableObject {
             userId: session.userId,
             userName: session.userName
           }, session);
+        } else if (data.type === "activity_heartbeat") {
+          // Handle activity heartbeat from a tab
+          // Broadcast to all OTHER tabs of the SAME user
+          console.log(`[ChatRoom] Activity heartbeat from ${session.userName} (${session.userId}), tabId: ${session.tabId}`);
+          
+          this.broadcastToUserTabs(session.userId, {
+            type: "activity_broadcast",
+            userId: session.userId,
+            userName: session.userName,
+            timestamp: data.timestamp || Date.now(),
+            fromTabId: session.tabId
+          }, session);
         } else if (data.type === "ping") {
           // Respond to ping to keep connection alive
           webSocket.send(JSON.stringify({ type: "pong" }));
@@ -265,6 +280,32 @@ export class ChatRoom extends DurableObject {
         session.quit = true;
       }
     });
+
+    // Clean up broken sessions
+    this.sessions = this.sessions.filter(s => !s.quit);
+  }
+
+  // Broadcast message to all tabs of a specific user (except sender)
+  broadcastToUserTabs(userId: string, message: any, excludeSession?: Session): void {
+    const messageStr = JSON.stringify(message);
+    let sentCount = 0;
+
+    this.sessions.forEach(session => {
+      // Only send to sessions of the same user
+      if (session.userId !== userId) return;
+      if (session === excludeSession) return;
+      if (session.quit) return;
+
+      try {
+        session.webSocket.send(messageStr);
+        sentCount++;
+      } catch (err) {
+        // Session is broken, mark for cleanup
+        session.quit = true;
+      }
+    });
+
+    console.log(`[ChatRoom] Broadcast activity to ${sentCount} other tabs of user ${userId}`);
 
     // Clean up broken sessions
     this.sessions = this.sessions.filter(s => !s.quit);

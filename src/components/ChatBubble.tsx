@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { MessageCircle, X, Send, Users, Volume2, VolumeX } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useAuth } from '../context/AuthContext';
-import { useChatWebSocket } from '../hooks/useChatWebSocket';
 import { ChatNotification } from './ChatNotification';
 
 interface Message {
@@ -20,20 +19,20 @@ interface OnlineUser {
   joinedAt: number;
 }
 
-export function ChatBubble() {
+interface ChatBubbleProps {
+  messages: Message[];
+  onlineUsers: OnlineUser[];
+  isConnected: boolean;
+  sendMessage: (content: string) => void;
+  sendTypingIndicator: () => void;
+}
+
+export function ChatBubble({ messages, onlineUsers, isConnected, sendMessage: sendMessageProp, sendTypingIndicator }: ChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [showOnlineUsers, setShowOnlineUsers] = useState(false);
   const { currentWorkspace } = useWorkspace();
   const { user } = useAuth();
-
-  const {
-    messages,
-    onlineUsers,
-    isConnected,
-    sendMessage,
-    sendTypingIndicator,
-  } = useChatWebSocket(currentWorkspace?.id || null);
 
   const [unreadCount, setUnreadCount] = useState(0);
   const prevMessagesLengthRef = React.useRef(messages.length);
@@ -154,7 +153,7 @@ export function ChatBubble() {
 
   const handleSend = () => {
     if (message.trim() && isConnected) {
-      sendMessage(message.trim());
+      sendMessageProp(message.trim());
       setMessage('');
     }
   };

@@ -6,6 +6,7 @@ import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
 import { ToastProvider } from './context/ToastContext';
 import { TaskTimerProvider } from './context/TaskTimerContext';
 import { InactivityBannerProvider } from './context/InactivityBannerContext';
+import { useChatWebSocket } from './hooks/useChatWebSocket';
 import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
@@ -48,6 +49,17 @@ function TaskManager() {
   
   // Check if user can view team features (owners and admins only)
   const canViewTeamFeatures = currentWorkspace?.role === 'owner' || currentWorkspace?.role === 'admin';
+
+  // Initialize WebSocket for chat and cross-tab activity tracking
+  const {
+    messages,
+    onlineUsers,
+    isConnected,
+    sendMessage,
+    sendTypingIndicator,
+    sendActivityHeartbeat,
+    onActivityBroadcast
+  } = useChatWebSocket(currentWorkspace?.id || null);
 
   useEffect(() => {
     loadSettings();
@@ -106,6 +118,8 @@ function TaskManager() {
           onAsanaImport={() => setShowAsanaImport(true)}
           canViewTeamFeatures={canViewTeamFeatures}
           hasAsanaIntegration={hasAsanaIntegration}
+          sendActivityHeartbeat={sendActivityHeartbeat}
+          onActivityBroadcast={onActivityBroadcast}
         />
 
         {/* Pending Invitations */}
@@ -163,7 +177,13 @@ function TaskManager() {
       )}
 
       {/* Chat Bubble - Available for all workspace members */}
-      <ChatBubble />
+      <ChatBubble
+        messages={messages}
+        onlineUsers={onlineUsers}
+        isConnected={isConnected}
+        sendMessage={sendMessage}
+        sendTypingIndicator={sendTypingIndicator}
+      />
     </div>
   );
 }

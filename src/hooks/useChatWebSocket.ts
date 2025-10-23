@@ -24,6 +24,8 @@ interface ChatState {
   isConnected: boolean;
   sendMessage: (content: string) => void;
   sendTypingIndicator: () => void;
+  sendActivityHeartbeat: (tabId: string) => void;
+  onActivityBroadcast?: (callback: (data: { fromTabId: string; timestamp: number }) => void) => void;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -41,6 +43,8 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set()); // Track seen message IDs to prevent duplicates
+  const activityCallbackRef = useRef<((data: { fromTabId: string; timestamp: number }) => void) | null>(null);
+  const tabIdRef = useRef<string>(crypto.randomUUID()); // Generate unique tab ID
   const { user } = useAuth();
 
   const connect = useCallback(() => {
@@ -72,12 +76,12 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
     }
 
     try {
-      console.log('Chat: Attempting to connect to workspace:', workspaceId);
+      console.log('Chat: Attempting to connect to workspace:', workspaceId, 'with tabId:', tabIdRef.current);
 
       // Convert HTTP URL to WebSocket URL
       const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-      // Pass token as query parameter (WebSocket can't use Authorization header in browsers)
-      const url = `${wsUrl}/api/chat/workspace/${workspaceId}/connect?token=${encodeURIComponent(token)}`;
+      // Pass token and tabId as query parameters (WebSocket can't use Authorization header in browsers)
+      const url = `${wsUrl}/api/chat/workspace/${workspaceId}/connect?token=${encodeURIComponent(token)}&tabId=${encodeURIComponent(tabIdRef.current)}`;
 
       console.log('Chat: Connecting to:', url.replace(/token=[^&]+/, 'token=***'));
 
@@ -150,6 +154,17 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
 
             case 'typing':
               // Handle typing indicator if needed
+              break;
+
+            case 'activity_broadcast':
+              // Activity detected in another tab
+              console.log('🔄 Activity broadcast received from another tab:', data.fromTabId);
+              if (activityCallbackRef.current) {
+                activityCallbackRef.current({
+                  fromTabId: data.fromTabId,
+                  timestamp: data.timestamp
+                });
+              }
               break;
 
             case 'pong':
@@ -273,11 +288,30 @@ export function useChatWebSocket(workspaceId: string | null): ChatState {
     }
   }, []);
 
+  const sendActivityHeartbeat = useCallback((tabId: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('💓 [WebSocket] Sending activity heartbeat, tabId:', tabId);
+      wsRef.current.send(JSON.stringify({
+        type: 'activity_heartbeat',
+        tabId,
+        timestamp: Date.now()
+      }));
+    } else {
+      console.warn('⚠️ [WebSocket] Cannot send heartbeat - WebSocket not connected');
+    }
+  }, []);
+
+  const onActivityBroadcast = useCallback((callback: (data: { fromTabId: string; timestamp: number }) => void) => {
+    activityCallbackRef.current = callback;
+  }, []);
+
   return {
     messages,
     onlineUsers,
     isConnected,
     sendMessage,
-    sendTypingIndicator
+    sendTypingIndicator,
+    sendActivityHeartbeat,
+    onActivityBroadcast
   };
 }

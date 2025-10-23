@@ -16,6 +16,8 @@ interface ConsolidatedHeaderProps {
   onAsanaImport?: () => void;
   canViewTeamFeatures?: boolean;
   hasAsanaIntegration?: boolean;
+  sendActivityHeartbeat?: (tabId: string) => void;
+  onActivityBroadcast?: (callback: (data: { fromTabId: string; timestamp: number }) => void) => void;
 }
 
 export function ConsolidatedHeader({ 
@@ -25,7 +27,9 @@ export function ConsolidatedHeader({
   onTeamDashboard, 
   onAsanaImport,
   canViewTeamFeatures = false,
-  hasAsanaIntegration = false 
+  hasAsanaIntegration = false,
+  sendActivityHeartbeat,
+  onActivityBroadcast
 }: ConsolidatedHeaderProps) {
   const { showSuccess, showError } = useToast();
   const { pauseAllTasks, resumeAllTasks, pauseUserTasks, resumeUserTasks, isAnyTaskRunning } = useTaskTimer();
@@ -193,7 +197,7 @@ export function ConsolidatedHeader({
     }
   }, [isClockedIn, isPaused, handlePause, pauseUserTasks, user, showBanner, isAnyTaskRunning]);
 
-  // Activity tracking - auto-pause on inactivity
+  // Activity tracking - auto-pause on inactivity with cross-tab support
   const {
     showPrompt,
     confirmActivity,
@@ -205,6 +209,8 @@ export function ConsolidatedHeader({
     onIdle,
     onActive,
     onPromptTimeout,
+    sendActivityHeartbeat, // Send heartbeats to other tabs via WebSocket
+    onActivityBroadcast, // Receive activity broadcasts from other tabs
   });
 
   // Handle activity prompt - user confirms they're still working
