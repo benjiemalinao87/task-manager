@@ -493,6 +493,68 @@ class ApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
   }
+
+  // Activity tracking methods
+  async logActivity(data: {
+    eventType: string;
+    idleDurationSeconds?: number;
+    wasClockedIn?: boolean;
+    wasTaskTimerRunning?: boolean;
+    promptResponseTimeSeconds?: number;
+    tabVisible?: boolean;
+    notes?: string;
+  }) {
+    return this.post<{ success: boolean; logId: string; message: string }>(
+      '/api/activity/log',
+      data
+    );
+  }
+
+  async getActivityLogs(filters?: {
+    limit?: number;
+    eventType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.eventType) params.append('eventType', filters.eventType);
+    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+
+    return this.get<{ logs: any[]; count: number }>(
+      `/api/activity/logs${params.toString() ? `?${params.toString()}` : ''}`
+    );
+  }
+
+  async getActivityStats(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+
+    return this.get<{
+      eventCounts: any[];
+      totalAutoPauses: number;
+      avgIdleTimeSeconds: number;
+    }>(`/api/activity/stats${params.toString() ? `?${params.toString()}` : ''}`);
+  }
+
+  async getActivitySettings() {
+    return this.get<{ settings: any }>('/api/activity/settings');
+  }
+
+  async updateActivitySettings(updates: {
+    idleTimeoutMinutes?: number;
+    promptTimeoutSeconds?: number;
+    activityTrackingEnabled?: boolean;
+    trackTabVisibility?: boolean;
+    notifyOnAutoPause?: boolean;
+  }) {
+    return this.patch<{ success: boolean; message: string }>(
+      '/api/activity/settings',
+      updates
+    );
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

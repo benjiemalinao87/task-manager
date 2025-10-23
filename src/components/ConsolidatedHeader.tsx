@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Clock, Play, Square, Pause, Settings, LogOut, BarChart3, Download, MoreHorizontal } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { useToast } from '../context/ToastContext';
+import { useTaskTimer } from '../context/TaskTimerContext';
+import { useInactivityBanner } from '../context/InactivityBannerContext';
+import { useActivityTracker } from '../hooks/useActivityTracker';
+import { ActivityPrompt } from './ActivityPrompt';
+import { InactivityBanner } from './InactivityBanner';
 
 interface ConsolidatedHeaderProps {
   user: any;
@@ -23,6 +28,8 @@ export function ConsolidatedHeader({
   hasAsanaIntegration = false 
 }: ConsolidatedHeaderProps) {
   const { showSuccess, showError } = useToast();
+  const { pauseAllTasks, resumeAllTasks, pauseUserTasks, resumeUserTasks, isAnyTaskRunning } = useTaskTimer();
+  const { bannerState, showBanner, dismissBanner } = useInactivityBanner();
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -137,6 +144,116 @@ export function ConsolidatedHeader({
       setIsProcessing(false);
     }
   };
+
+  // Memoized callbacks for activity tracking to prevent infinite loops
+  const onIdle = useCallback(() => {
+    console.log('⏸️ User idle detected - showing prompt');
+  }, []);
+
+  const onActive = useCallback(() => {
+    console.log('🟢 User active again');
+  }, []);
+
+  const onPromptTimeout = useCallback(async () => {
+    // Capture states BEFORE any changes
+    const wasClockedInBeforePause = isClockedIn && !isPaused;
+    const wasTaskRunningBeforePause = isAnyTaskRunning();
+    
+    let sessionWasPaused = false;
+    let tasksWerePaused = false;
+    
+    // Auto-pause the session
+    if (isClockedIn && !isPaused) {
+      await handlePause();
+      sessionWasPaused = true;
+    }
+    
+    // Pause only the current user's task timers
+    if (user?.id) {
+      pauseUserTasks(user.id);
+      tasksWerePaused = true;
+    }
+    
+    // Log the auto-pause event with captured states
+    try {
+      await apiClient.logActivity({
+        eventType: 'auto_paused',
+        wasClockedIn: wasClockedInBeforePause,
+        wasTaskTimerRunning: wasTaskRunningBeforePause,
+        tabVisible: !document.hidden,
+        notes: 'Auto-paused due to inactivity timeout',
+      });
+    } catch (error) {
+      console.error('Failed to log auto-pause activity:', error);
+    }
+    
+    // Show banner if anything was paused
+    if (sessionWasPaused || tasksWerePaused) {
+      showBanner(sessionWasPaused, tasksWerePaused, 'inactivity');
+    }
+  }, [isClockedIn, isPaused, handlePause, pauseUserTasks, user, showBanner, isAnyTaskRunning]);
+
+  // Activity tracking - auto-pause on inactivity
+  const {
+    showPrompt,
+    confirmActivity,
+    pauseTracking,
+  } = useActivityTracker({
+    idleTimeoutMs: 2 * 60 * 1000, // 2 minutes idle timeout
+    promptTimeoutMs: 60 * 1000, // 1 minute prompt timeout
+    enabled: isClockedIn && !isPaused, // Only track when clocked in and not paused
+    onIdle,
+    onActive,
+    onPromptTimeout,
+  });
+
+  // Handle activity prompt - user confirms they're still working
+  const handleContinueWorking = useCallback(async () => {
+    confirmActivity();
+    // Resume only the current user's task timers
+    if (user?.id) {
+      resumeUserTasks(user.id);
+    }
+    
+    // Log the continue working event
+    try {
+      const wasClockedInState = isClockedIn && !isPaused;
+      const wasTaskRunningState = isAnyTaskRunning();
+      
+      await apiClient.logActivity({
+        eventType: 'user_continued',
+        wasClockedIn: wasClockedInState,
+        wasTaskTimerRunning: wasTaskRunningState,
+        tabVisible: !document.hidden,
+        notes: 'User chose to continue working',
+      });
+    } catch (error) {
+      console.error('Failed to log continue working activity:', error);
+    }
+    
+    showSuccess('Tracking Continues', 'Your timers are still running.');
+  }, [confirmActivity, showSuccess, resumeUserTasks, user, isClockedIn, isPaused, isAnyTaskRunning]);
+
+  // Handle activity prompt - user wants to pause
+  const handlePauseFromPrompt = useCallback(async () => {
+    pauseTracking();
+    if (isClockedIn && !isPaused) {
+      await handlePause();
+    }
+  }, [pauseTracking, isClockedIn, isPaused, handlePause]);
+
+  // Banner handlers
+  const handleResumeSession = useCallback(async () => {
+    if (isPaused) {
+      await handleResume();
+    }
+  }, [isPaused, handleResume]);
+
+  const handleResumeTasks = useCallback(() => {
+    if (user?.id) {
+      resumeUserTasks(user.id);
+    }
+  }, [user, resumeUserTasks]);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 mb-6">
@@ -286,6 +403,24 @@ export function ConsolidatedHeader({
           </div>
         </div>
       </div>
+
+      {/* Activity Prompt Modal */}
+      <ActivityPrompt
+        show={showPrompt}
+        timeoutSeconds={60} // 1 minute prompt timeout
+        onContinue={handleContinueWorking}
+        onPause={handlePauseFromPrompt}
+      />
+
+      {/* Inactivity Banner */}
+      <InactivityBanner
+        show={bannerState.show}
+        sessionPaused={bannerState.sessionPaused}
+        tasksPaused={bannerState.tasksPaused}
+        onResumeSession={handleResumeSession}
+        onResumeTasks={handleResumeTasks}
+        onDismiss={dismissBanner}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { formatDateTimePST } from '../lib/dateUtils';
 import { StatusSelector } from './StatusSelector';
 import { TaskStatus } from '../lib/statusConstants';
 import { useToast } from '../context/ToastContext';
+import { useTaskTimer } from '../context/TaskTimerContext';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -44,6 +45,7 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const { confirm, isOpen, options, onConfirm, onCancel } = useConfirmation();
+  const { pauseStates, registerTask, pauseTask, resumeTask } = useTaskTimer();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
@@ -54,36 +56,40 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [previousTaskCount, setPreviousTaskCount] = useState(0);
 
-  // Pause/resume state management (keyed by task ID)
-  const [pauseStates, setPauseStates] = useState<Record<string, {
-    isPaused: boolean;
-    pausedTime: number;
-    pauseStartTime: number | null;
-  }>>({});
-
   useEffect(() => {
     fetchTasks();
   }, [refreshTrigger]);
 
-  // Load pause states from localStorage on mount and when tasks change
+  // Register tasks and load pause states from localStorage
   useEffect(() => {
     if (tasks.length > 0) {
-      const newPauseStates: typeof pauseStates = {};
       tasks.forEach(task => {
-        const savedState = localStorage.getItem(`task_pause_${task.id}`);
-        if (savedState) {
-          newPauseStates[task.id] = JSON.parse(savedState);
-        } else {
-          newPauseStates[task.id] = {
-            isPaused: false,
-            pausedTime: 0,
-            pauseStartTime: null,
-          };
+        // Only register tasks that have started_at (are actively running)
+        if (task.started_at && !task.completed_at) {
+          const savedState = localStorage.getItem(`task_pause_${task.id}`);
+          if (savedState) {
+            const { isPaused, pausedTime, pauseStartTime } = JSON.parse(savedState);
+            registerTask(task.id, { 
+              isPaused, 
+              pausedTime, 
+              pauseStartTime,
+              userId: task.user_id,
+              assignedTo: task.assigned_to 
+            });
+          } else {
+            // Register with default state (not paused) and user info
+            registerTask(task.id, {
+              isPaused: false,
+              pausedTime: 0,
+              pauseStartTime: null,
+              userId: task.user_id,
+              assignedTo: task.assigned_to
+            });
+          }
         }
       });
-      setPauseStates(newPauseStates);
     }
-  }, [tasks]);
+  }, [tasks, registerTask]);
 
   // Separate effect to handle auto-expanding new tasks
   useEffect(() => {
@@ -138,34 +144,18 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   };
 
   const handleTogglePause = (taskId: string) => {
-    setPauseStates(prev => {
-      const currentState = prev[taskId] || { isPaused: false, pausedTime: 0, pauseStartTime: null };
+    const currentState = pauseStates[taskId];
+    if (!currentState) {
+      // Initialize if not exists
+      pauseTask(taskId);
+      return;
+    }
 
-      if (currentState.isPaused) {
-        // Resume: add the paused duration to total paused time
-        const pauseDuration = currentState.pauseStartTime
-          ? Date.now() - currentState.pauseStartTime
-          : 0;
-        return {
-          ...prev,
-          [taskId]: {
-            isPaused: false,
-            pausedTime: currentState.pausedTime + pauseDuration,
-            pauseStartTime: null,
-          }
-        };
-      } else {
-        // Pause: record the pause start time
-        return {
-          ...prev,
-          [taskId]: {
-            ...currentState,
-            isPaused: true,
-            pauseStartTime: Date.now(),
-          }
-        };
-      }
-    });
+    if (currentState.isPaused) {
+      resumeTask(taskId);
+    } else {
+      pauseTask(taskId);
+    }
   };
 
   const getPriorityConfig = (priority: 'low' | 'medium' | 'high' | 'urgent') => {

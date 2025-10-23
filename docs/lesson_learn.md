@@ -1,5 +1,73 @@
 # Lessons Learned
 
+## Activity Tracking - Maximum Update Depth Exceeded (October 23, 2025)
+
+### Issue: Infinite Re-render Loop in useActivityTracker Hook
+**Problem**: "Maximum update depth exceeded" error when activity tracking was enabled, causing the app to freeze.
+
+**Root Cause**: 
+- Callback functions in `ConsolidatedHeader` were being recreated on every render
+- `useActivityTracker` hook had dependencies that changed on every render
+- `resetActivityTimer` function was included in useEffect dependencies
+- State dependencies in useCallback caused infinite loops
+
+**How To Detect**:
+```typescript
+// ❌ WRONG - Functions recreated every render
+const onIdle = () => {
+  console.log('User idle');
+};
+
+// ❌ WRONG - State dependencies in useCallback
+const resetActivityTimer = useCallback(() => {
+  // ... logic using state.isIdle, state.showPrompt
+}, [enabled, state.isIdle, state.showPrompt, ...]); // state changes cause re-render
+```
+
+**How To Fix**:
+```typescript
+// ✅ CORRECT - Memoize callbacks
+const onIdle = useCallback(() => {
+  console.log('User idle');
+}, []);
+
+// ✅ CORRECT - Use refs instead of state dependencies
+const stateRef = useRef(state);
+useEffect(() => {
+  stateRef.current = state;
+}, [state]);
+
+// ✅ CORRECT - Remove state dependencies
+const resetActivityTimer = useCallback(() => {
+  if (stateRef.current.isIdle || stateRef.current.showPrompt) {
+    // Use ref instead of state
+  }
+}, [enabled, idleTimeoutMs, promptTimeoutMs, ...]); // No state dependencies
+```
+
+**Key Learnings**:
+1. **Always memoize callback functions** passed to custom hooks
+2. **Use refs for state values** in useCallback dependencies
+3. **Avoid state dependencies** in useCallback when possible
+4. **Inline logic** instead of calling functions with dependencies
+5. **Test activity tracking** with shorter timeouts first
+
+**Files Fixed**:
+- `src/hooks/useActivityTracker.ts` - Removed state dependencies, used refs
+- `src/components/ConsolidatedHeader.tsx` - Memoized all callbacks
+- `src/components/ActivityTest.tsx` - Created test component
+
+**Prevention**:
+- Always use `useCallback` for functions passed to custom hooks
+- Use refs for accessing current state values in callbacks
+- Avoid including state values in useCallback dependencies
+- Test with shorter timeouts during development
+- Add debug logging to track re-renders
+
+**Result**: Activity tracking now works without infinite loops, properly detects inactivity, shows prompts, and auto-pauses sessions.
+
+---
+
 ## New User Signup - No Default Workspace Created (October 15, 2025)
 
 ### Issue: "No workspace found" Error When New User Creates Task

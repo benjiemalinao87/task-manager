@@ -16,6 +16,7 @@ import invitations from './workers/invitations';
 import reports from './workers/reports';
 import chat from './workers/chat';
 import onboarding from './workers/onboarding';
+import activity from './workers/activity';
 import { sendTestUpdateEmail, sendUpdateToAllUsers } from './workers/update-notifications';
 
 // Export Durable Object
@@ -66,6 +67,9 @@ app.route('/api/onboarding', onboarding);
 
 // Mount chat routes
 app.route('/api/chat', chat);
+
+// Mount activity tracking routes
+app.route('/api/activity', activity);
 
 // Update notification routes
 app.post('/api/send-test-update-email', sendTestUpdateEmail);

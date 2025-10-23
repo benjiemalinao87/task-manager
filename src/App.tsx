@@ -4,6 +4,8 @@ import { Settings as SettingsIcon, LogOut, CheckSquare, LayoutDashboard, Downloa
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
 import { ToastProvider } from './context/ToastContext';
+import { TaskTimerProvider } from './context/TaskTimerContext';
+import { InactivityBannerProvider } from './context/InactivityBannerContext';
 import { apiClient } from './lib/api-client';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/auth/AuthPage';
@@ -225,9 +227,13 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <WorkspaceProvider>
-          <ToastProvider>
-            <AppContent />
-          </ToastProvider>
+          <TaskTimerProvider>
+            <InactivityBannerProvider>
+              <ToastProvider>
+                <AppContent />
+              </ToastProvider>
+            </InactivityBannerProvider>
+          </TaskTimerProvider>
         </WorkspaceProvider>
       </AuthProvider>
     </BrowserRouter>
