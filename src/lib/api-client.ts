@@ -555,6 +555,70 @@ class ApiClient {
       updates
     );
   }
+
+  // Recurring Tasks API methods
+  async createRecurringPattern(data: {
+    task_name: string;
+    description: string;
+    estimated_time: string;
+    task_link?: string;
+    priority?: string;
+    assigned_to?: string;
+    frequency: string;
+    interval?: number;
+    days_of_week?: string[];
+    day_of_month?: number;
+    time_of_day?: string;
+    start_date: string;
+    end_date?: string;
+    occurrences_limit?: number;
+  }) {
+    return this.post<{
+      success: boolean;
+      patternId: string;
+      nextOccurrence: string;
+      message: string;
+    }>('/api/recurring-tasks', data);
+  }
+
+  async getRecurringPatterns() {
+    return this.get<{ patterns: any[] }>('/api/recurring-tasks');
+  }
+
+  async getRecurringPattern(id: string) {
+    return this.get<{ pattern: any }>(`/api/recurring-tasks/${id}`);
+  }
+
+  async updateRecurringPattern(id: string, updates: any) {
+    return this.patch<{ success: boolean; message: string }>(
+      `/api/recurring-tasks/${id}`,
+      updates
+    );
+  }
+
+  async deleteRecurringPattern(id: string) {
+    return this.delete<{ success: boolean; message: string }>(
+      `/api/recurring-tasks/${id}`
+    );
+  }
+
+  async generateRecurringTaskInstance(id: string) {
+    return this.post<{
+      success: boolean;
+      taskId: string;
+      instanceDate: string;
+      nextOccurrence: string;
+      message: string;
+    }>(`/api/recurring-tasks/${id}/generate`, {});
+  }
+
+  async getRecurringTaskInstances(id: string) {
+    return this.get<{ instances: any[] }>(`/api/recurring-tasks/${id}/instances`);
+  }
+
+  async getNextOccurrence(patternId: string) {
+    return this.get<{ nextOccurrence: string; pattern: any }>(`/api/recurring-tasks/${patternId}/next-occurrence`);
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

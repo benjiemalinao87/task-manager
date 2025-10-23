@@ -17,6 +17,7 @@ import reports from './workers/reports';
 import chat from './workers/chat';
 import onboarding from './workers/onboarding';
 import activity from './workers/activity';
+import recurringTasks from './workers/recurring-tasks';
 import { sendTestUpdateEmail, sendUpdateToAllUsers } from './workers/update-notifications';
 
 // Export Durable Object
@@ -70,6 +71,9 @@ app.route('/api/chat', chat);
 
 // Mount activity tracking routes
 app.route('/api/activity', activity);
+
+// Mount recurring tasks routes
+app.route('/api/recurring-tasks', recurringTasks);
 
 // Update notification routes
 app.post('/api/send-test-update-email', sendTestUpdateEmail);

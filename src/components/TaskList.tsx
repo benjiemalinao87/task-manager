@@ -35,6 +35,9 @@ interface Task {
   assignee_email?: string;
   creator_name?: string;
   creator_email?: string;
+  is_recurring?: boolean;
+  recurring_pattern_id?: string;
+  recurrence_instance_date?: string;
 }
 
 interface TaskListProps {
@@ -65,7 +68,8 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     if (tasks.length > 0) {
       tasks.forEach(task => {
         // Only register tasks that have started_at (are actively running)
-        if (task.started_at && !task.completed_at) {
+        // Pending tasks don't have started_at, so they won't be registered
+        if (task.started_at && !task.completed_at && task.status === 'in_progress') {
           const savedState = localStorage.getItem(`task_pause_${task.id}`);
           if (savedState) {
             const { isPaused, pausedTime, pauseStartTime } = JSON.parse(savedState);
@@ -158,6 +162,35 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
     }
   };
 
+  const handleStartTimer = async (taskId: string) => {
+    try {
+      // Update task status to in_progress and set started_at
+      await apiClient.updateTask(taskId, {
+        status: 'in_progress',
+        started_at: new Date().toISOString()
+      });
+      
+      // Register the task for timer tracking
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        registerTask(taskId, {
+          isPaused: false,
+          pausedTime: 0,
+          pauseStartTime: null,
+          userId: task.user_id,
+          assignedTo: task.assigned_to
+        });
+      }
+      
+      // Refresh tasks to get updated data
+      await fetchTasks();
+      showSuccess('Timer Started!', 'Your task timer has been started successfully.');
+    } catch (error) {
+      console.error('Error starting timer:', error);
+      showError('Start Failed', 'Failed to start timer. Please try again.');
+    }
+  };
+
   const getPriorityConfig = (priority: 'low' | 'medium' | 'high' | 'urgent') => {
     const configs = {
       low: {
@@ -199,8 +232,12 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const data = await apiClient.getTasks('in_progress');
-      setTasks(data);
+      // Fetch both in_progress and pending tasks
+      const [inProgressTasks, pendingTasks] = await Promise.all([
+        apiClient.getTasks('in_progress'),
+        apiClient.getTasks('pending')
+      ]);
+      setTasks([...inProgressTasks, ...pendingTasks]);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -308,10 +345,23 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
       // Clean up pause state from localStorage
       localStorage.removeItem(`task_pause_${task.id}`);
 
+      // If this is a recurring task, generate the next instance
+      if (task.recurring_pattern_id) {
+        try {
+          const result = await apiClient.generateRecurringTaskInstance(task.recurring_pattern_id);
+          console.log('✅ Next recurring instance generated:', result);
+          showSuccess('Task Completed!', `Great job! Your task has been completed successfully. Next instance scheduled for ${result.nextOccurrence || 'later'}.`);
+        } catch (error) {
+          console.error('Error generating next recurring instance:', error);
+          showSuccess('Task Completed!', 'Great job! Your task has been completed successfully.');
+        }
+      } else {
+        showSuccess('Task Completed!', 'Great job! Your task has been completed successfully.');
+      }
+
       setShowNoteInput(null);
       setNoteText('');
       await fetchTasks();
-      showSuccess('Task Completed!', 'Great job! Your task has been completed successfully.');
     } catch (error) {
       console.error('Error completing task:', error);
       showError('Completion Failed', 'Failed to complete task. Please try again.');
@@ -362,15 +412,32 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
             {/* Compact View - Always Visible */}
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex-1">
-                <h3 className={`font-bold text-gray-800 ${isExpanded ? 'text-2xl mb-2' : 'text-xl'}`}>
-                  {task.task_name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className={`font-bold text-gray-800 ${isExpanded ? 'text-2xl mb-2' : 'text-xl'}`}>
+                    {task.task_name}
+                  </h3>
+                  {!!task.is_recurring && (
+                    <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Recurring
+                    </div>
+                  )}
+                </div>
                 {!isExpanded && (
                   <div className="flex items-center gap-3 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span className="font-mono font-bold">{calculateElapsedTime(task.started_at, task.id)}</span>
-                    </div>
+                    {task.status === 'pending' ? (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-500 italic">Ready to start</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-mono font-bold">{calculateElapsedTime(task.started_at, task.id)}</span>
+                      </div>
+                    )}
                     {task.assigned_to && task.assignee_name && (
                       <div className="flex items-center gap-2">
                         <span className="text-gray-400">•</span>
@@ -428,39 +495,61 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
             {/* Expanded View - Conditional */}
             {isExpanded && (
               <>
-                {/* Timer Display */}
-                <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
-                  <div className="text-center">
-                    <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">
-                      {pauseStates[task.id]?.isPaused ? 'Timer Paused' : 'Time Running'}
-                    </p>
-                    <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at, task.id)}</p>
-                    <p className="text-xs opacity-75 font-medium mb-5">Hours : Minutes : Seconds</p>
+                {/* Timer Display or Start Button */}
+                {task.status === 'pending' ? (
+                  <div className="bg-gradient-to-br from-gray-500 via-gray-600 to-gray-700 text-white rounded-2xl p-8 mb-6 shadow-xl border border-gray-400">
+                    <div className="text-center">
+                      <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">
+                        Ready to Start
+                      </p>
+                      <p className="text-4xl font-bold tracking-wider mb-2">00:00:00</p>
+                      <p className="text-xs opacity-75 font-medium mb-5">Click to start timer</p>
 
-                    {/* Pause/Resume Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePause(task.id)}
-                      className={`${
-                        pauseStates[task.id]?.isPaused
-                          ? 'bg-green-500 hover:bg-green-600'
-                          : 'bg-yellow-500 hover:bg-yellow-600'
-                      } text-white font-bold py-2 px-6 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105`}
-                    >
-                      {pauseStates[task.id]?.isPaused ? (
-                        <>
-                          <Play className="w-4 h-4" />
-                          Resume Timer
-                        </>
-                      ) : (
-                        <>
-                          <Pause className="w-4 h-4" />
-                          Pause Timer
-                        </>
-                      )}
-                    </button>
+                      {/* Start Timer Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleStartTimer(task.id)}
+                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        <Play className="w-5 h-5" />
+                        Start Timer
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-xl border border-blue-500">
+                    <div className="text-center">
+                      <p className="text-sm font-bold mb-3 opacity-90 uppercase tracking-wide">
+                        {pauseStates[task.id]?.isPaused ? 'Timer Paused' : 'Time Running'}
+                      </p>
+                      <p className="text-6xl font-bold font-mono tracking-wider mb-2">{calculateElapsedTime(task.started_at, task.id)}</p>
+                      <p className="text-xs opacity-75 font-medium mb-5">Hours : Minutes : Seconds</p>
+
+                      {/* Pause/Resume Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePause(task.id)}
+                        className={`${
+                          pauseStates[task.id]?.isPaused
+                            ? 'bg-green-500 hover:bg-green-600'
+                            : 'bg-yellow-500 hover:bg-yellow-600'
+                        } text-white font-bold py-2 px-6 rounded-xl transition-all flex items-center justify-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105`}
+                      >
+                        {pauseStates[task.id]?.isPaused ? (
+                          <>
+                            <Play className="w-4 h-4" />
+                            Resume Timer
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="w-4 h-4" />
+                            Pause Timer
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Description */}
                 <div className="mb-6">
@@ -521,6 +610,29 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
                         <span className="font-semibold text-sm">{formatDateTimePST(task.created_at)}</span>
                       </div>
                     </div>
+
+                    {!!task.is_recurring && task.recurrence_instance_date && task.recurrence_instance_date !== 'null' && task.recurrence_instance_date !== null && (
+                      <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                        <div className="bg-green-100 p-2 rounded-lg">
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </div>
+                        <div>
+                          <span className="block text-xs text-gray-500 font-medium">This Instance</span>
+                          <span className="font-semibold text-sm">
+                            {(() => {
+                              try {
+                                const date = new Date(task.recurrence_instance_date);
+                                return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleDateString();
+                              } catch (error) {
+                                return 'Invalid date';
+                              }
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     {task.task_link && (
                       <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
