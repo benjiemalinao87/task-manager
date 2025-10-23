@@ -319,12 +319,12 @@ export function TeamDashboard() {
       <TeamNavigation />
 
       {/* Main Content */}
-      <div className="px-6 py-8 max-w-[1600px] mx-auto">
+      <div className="px-4 md:px-6 py-8 max-w-[1800px] mx-auto w-full">
         {/* Page Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Team Performance</h1>
-            <p className="text-gray-400">Viewing metrics for {currentWorkspace?.name || 'workspace'}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Team Performance</h1>
+            <p className="text-sm sm:text-base text-gray-400">Viewing metrics for {currentWorkspace?.name || 'workspace'}</p>
           </div>
           <div className="flex items-center gap-3">
             <select 
@@ -401,7 +401,7 @@ export function TeamDashboard() {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
           {/* Team Performance Chart */}
           <div className="bg-[#1a2332] border border-gray-800 rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
@@ -428,7 +428,7 @@ export function TeamDashboard() {
                   <div className="w-full bg-gray-800 rounded-full h-2">
                     <div
                         className={`${getAvatarColor(idx)} h-2 rounded-full transition-all`}
-                        style={{ width: `${member.completion_rate}%` }}
+                        style={{ width: `${Math.min(parseFloat(member.completion_rate), 100)}%` }}
                     />
                     </div>
                   </div>
@@ -482,14 +482,14 @@ export function TeamDashboard() {
         </div>
 
         {/* Recent Tasks Table */}
-        <div className="bg-[#1a2332] border border-gray-800 rounded-xl p-6">
+        <div className="bg-[#1a2332] border border-gray-800 rounded-xl p-6 overflow-hidden">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-white">Recent Tasks</h3>
             <Calendar className="w-5 h-5 text-gray-400" />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full min-w-[800px]">
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider pb-3">Task</th>
