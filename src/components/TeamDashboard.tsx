@@ -11,7 +11,8 @@ import {
   Target,
   Activity,
   Loader2,
-  UserPlus
+  UserPlus,
+  X
 } from 'lucide-react';
 import { TeamNavigation } from './TeamNavigation';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -62,6 +63,9 @@ export function TeamDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState('14d');
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
 
   // Redirect members to main tasks page
   useEffect(() => {
@@ -82,6 +86,12 @@ export function TeamDashboard() {
 
   // Calculate date range
   const getDateRange = (range: string) => {
+    if (range === 'custom') {
+      return {
+        dateFrom: customDateFrom,
+        dateTo: customDateTo
+      };
+    }
     const now = new Date();
     const daysAgo = parseInt(range.replace('d', ''));
     const dateFrom = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
@@ -193,6 +203,29 @@ export function TeamDashboard() {
 
     fetchDashboardData();
   }, [currentWorkspace, dateRange]);
+
+  // Handle custom date range
+  const handleApplyCustomDateRange = () => {
+    if (!customDateFrom || !customDateTo) {
+      alert('Please select both start and end dates');
+      return;
+    }
+    if (new Date(customDateFrom) > new Date(customDateTo)) {
+      alert('Start date must be before end date');
+      return;
+    }
+    setDateRange('custom');
+    setShowCustomDatePicker(false);
+  };
+
+  // Handle date range change
+  const handleDateRangeChange = (value: string) => {
+    if (value === 'custom') {
+      setShowCustomDatePicker(true);
+    } else {
+      setDateRange(value);
+    }
+  };
 
   // Handle task assignment
   const handleAssignTask = async (taskId: string, assignedTo: string | null) => {
@@ -324,20 +357,43 @@ export function TeamDashboard() {
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Team Performance</h1>
-            <p className="text-sm sm:text-base text-gray-400">Viewing metrics for {currentWorkspace?.name || 'workspace'}</p>
+            <p className="text-sm sm:text-base text-gray-400">
+              Viewing metrics for {currentWorkspace?.name || 'workspace'}
+              {dateRange === 'custom' && customDateFrom && customDateTo && (
+                <span className="ml-2 text-blue-400">
+                  ({new Date(customDateFrom).toLocaleDateString()} - {new Date(customDateTo).toLocaleDateString()})
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <select 
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              aria-label="Select date range"
-              className="bg-[#1a2332] border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
-            >
-              <option value="7d">Last 7 days</option>
-              <option value="14d">Last 14 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-            </select>
+            {dateRange === 'custom' && customDateFrom && customDateTo ? (
+              <div className="flex items-center gap-2">
+                <div className="bg-[#1a2332] border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-300">
+                  <Calendar className="w-4 h-4 inline mr-2" />
+                  {new Date(customDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(customDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+                <button
+                  onClick={() => setShowCustomDatePicker(true)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 py-2 text-sm transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <select
+                value={dateRange}
+                onChange={(e) => handleDateRangeChange(e.target.value)}
+                aria-label="Select date range"
+                className="bg-[#1a2332] border border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-300 focus:outline-none focus:border-blue-500"
+              >
+                <option value="7d">Last 7 days</option>
+                <option value="14d">Last 14 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            )}
           </div>
         </div>
 
@@ -640,6 +696,72 @@ export function TeamDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Custom Date Range Modal */}
+      {showCustomDatePicker && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a2332] border border-gray-700 rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white">Custom Date Range</h3>
+              <button
+                onClick={() => setShowCustomDatePicker(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Start Date */}
+              <div>
+                <label htmlFor="date-from" className="block text-sm font-medium text-gray-300 mb-2">
+                  Start Date
+                </label>
+                <input
+                  id="date-from"
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full bg-[#0a1628] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              {/* End Date */}
+              <div>
+                <label htmlFor="date-to" className="block text-sm font-medium text-gray-300 mb-2">
+                  End Date
+                </label>
+                <input
+                  id="date-to"
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  min={customDateFrom}
+                  className="w-full bg-[#0a1628] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowCustomDatePicker(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyCustomDateRange}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
