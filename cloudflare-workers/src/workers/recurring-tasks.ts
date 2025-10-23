@@ -237,8 +237,8 @@ recurringTasks.post('/', async (c) => {
           1, // is_recurring
           patternId,
           firstInstanceDate,
-          'pending', // Don't auto-start the timer
-          timestamp, // Set started_at but task is pending until user starts timer
+          assigned_to ? 'pending' : 'in_progress', // Don't auto-start the timer for assigned tasks
+          timestamp, // started_at always has a value (NOT NULL constraint)
           timestamp,
           timestamp
         ).run();
@@ -515,8 +515,8 @@ recurringTasks.post('/:id/generate', async (c) => {
         1, // is_recurring
         patternId,
         nextOccurrence,
-        'pending', // Don't auto-start the timer
-        timestamp, // Set started_at but task is pending until user starts timer
+        pattern.assigned_to ? 'pending' : 'in_progress', // Don't auto-start the timer for assigned tasks
+        timestamp, // started_at always has a value (NOT NULL constraint)
         timestamp,
         timestamp
       ).run();

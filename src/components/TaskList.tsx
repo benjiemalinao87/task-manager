@@ -67,8 +67,8 @@ export function TaskList({ refreshTrigger }: TaskListProps) {
   useEffect(() => {
     if (tasks.length > 0) {
       tasks.forEach(task => {
-        // Only register tasks that have started_at (are actively running)
-        // Pending tasks don't have started_at, so they won't be registered
+        // Only register tasks that are actively running (have started_at AND status is in_progress)
+        // Pending tasks should not be registered for timer tracking
         if (task.started_at && !task.completed_at && task.status === 'in_progress') {
           const savedState = localStorage.getItem(`task_pause_${task.id}`);
           if (savedState) {

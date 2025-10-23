@@ -292,14 +292,14 @@ tasks.post('/', async (c) => {
         id, user_id, task_name, description, estimated_time,
         task_link, priority, asana_task_id, workspace_id,
         assigned_to, assigned_by, assigned_at,
-        started_at, created_at, updated_at
+        status, started_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       taskId, auth.userId, taskName, description, estimatedTime,
       taskLink || null, taskPriority, asanaTaskId || null, finalWorkspaceId,
       assignedTo || null, assignedTo ? auth.userId : null, assignedTo ? now : null,
-      now, now, now
+      assignedTo ? 'pending' : 'in_progress', now, now, now
     ).run();
 
     const task = await c.env.DB.prepare(`
@@ -403,12 +403,14 @@ tasks.put('/:id/assign', async (c) => {
       SET assigned_to = ?,
           assigned_by = ?,
           assigned_at = ?,
+          status = ?,
           updated_at = ?
       WHERE id = ?
     `).bind(
       body.assignedTo || null,
       body.assignedTo ? auth.userId : null,
       body.assignedTo ? now : null,
+      body.assignedTo ? 'pending' : 'in_progress',
       now,
       taskId
     ).run();
