@@ -203,7 +203,7 @@ export function ConsolidatedHeader({
     confirmActivity,
     pauseTracking,
   } = useActivityTracker({
-    idleTimeoutMs: 2 * 60 * 1000, // 2 minutes idle timeout
+    idleTimeoutMs: 10 * 60 * 1000, // 10 minutes idle timeout
     promptTimeoutMs: 60 * 1000, // 1 minute prompt timeout
     enabled: isClockedIn && !isPaused, // Only track when clocked in and not paused
     onIdle,

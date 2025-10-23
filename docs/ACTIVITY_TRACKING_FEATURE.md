@@ -54,7 +54,7 @@ const {
   confirmActivity,
   pauseTracking,
 } = useActivityTracker({
-  idleTimeoutMs: 2 * 60 * 1000, // 2 minutes
+  idleTimeoutMs: 10 * 60 * 1000, // 10 minutes
   promptTimeoutMs: 60 * 1000, // 1 minute  
   enabled: isClockedIn && !isPaused,
   onIdle: () => console.log('User idle'),
@@ -297,7 +297,7 @@ CREATE TABLE activity_settings (
 ### Single Tab Flow
 1. **User clocks in** → Activity tracking starts
 2. **User works actively** → Timer runs normally
-3. **User becomes idle (2 min)** → Prompt appears
+3. **User becomes idle (10 min)** → Prompt appears
 4. **Countdown starts (60 sec)** → User has time to respond
 5. **Two outcomes:**
    - **User clicks "Continue"** → Tracking continues, prompt dismissed
@@ -332,7 +332,7 @@ CREATE TABLE activity_settings (
 ## Configuration
 
 ### Default Settings
-- **Idle timeout:** 2 minutes
+- **Idle timeout:** 10 minutes
 - **Prompt timeout:** 60 seconds
 - **Activity tracking:** Enabled
 - **Tab visibility tracking:** Enabled
@@ -353,10 +353,10 @@ Users can adjust settings via API or (future) Settings UI:
 
 #### Single Tab Testing
 1. Clock in to start a session
-2. Wait 2 minutes without interacting with the page
+2. Wait 10 minutes without interacting with the page
 3. Verify prompt appears with countdown
 4. Click "Yes, I'm Still Working" → verify tracking continues
-5. Wait 2 minutes again
+5. Wait 10 minutes again
 6. Let countdown expire → verify auto-pause occurs
 7. Check database for activity logs
 
@@ -364,7 +364,7 @@ Users can adjust settings via API or (future) Settings UI:
 1. Open the app in **two separate browser tabs** (Tab A and Tab B)
 2. Clock in from Tab A
 3. Switch to Tab B and verify timer is running
-4. **Stay in Tab B** and don't interact for 2 minutes
+4. **Stay in Tab B** and don't interact for 10 minutes
 5. **While still in Tab B**, move your mouse or type in Tab A
 6. **Expected:** Tab B should NOT show the idle prompt (because Tab A had activity)
 7. Check console logs in both tabs to see heartbeat messages
@@ -450,7 +450,7 @@ await apiClient.updateActivitySettings({
 ### Issue: Prompt appears too quickly/slowly
 **Solution:**
 - Adjust `idleTimeoutMs` in useActivityTracker configuration
-- Default is 2 minutes (120,000ms)
+- Default is 10 minutes (600,000ms)
 - Can be customized per user via settings
 
 ### Issue: Cross-tab tracking not working (NEW)
