@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckSquare, Clock, Play, Square, Settings, LogOut, BarChart3, Download, MoreHorizontal } from 'lucide-react';
+import { CheckSquare, Clock, Play, Square, Pause, Settings, LogOut, BarChart3, Download, MoreHorizontal } from 'lucide-react';
 import { apiClient } from '../lib/api-client';
 import { useToast } from '../context/ToastContext';
 
@@ -24,9 +24,11 @@ export function ConsolidatedHeader({
 }: ConsolidatedHeaderProps) {
   const { showSuccess, showError } = useToast();
   const [isClockedIn, setIsClockedIn] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [clockInTime, setClockInTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
+  const [totalPausedMinutes, setTotalPausedMinutes] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -35,20 +37,22 @@ export function ConsolidatedHeader({
   }, []);
 
   useEffect(() => {
-    if (isClockedIn && clockInTime) {
+    if (isClockedIn && clockInTime && !isPaused) {
       const interval = setInterval(() => {
         const now = new Date();
         const diff = now.getTime() - clockInTime.getTime();
-        const hours = Math.floor(diff / 3600000);
-        const minutes = Math.floor((diff % 3600000) / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
+        // Subtract paused time from elapsed time
+        const activeTime = diff - (totalPausedMinutes * 60000);
+        const hours = Math.floor(activeTime / 3600000);
+        const minutes = Math.floor((activeTime % 3600000) / 60000);
+        const seconds = Math.floor((activeTime % 60000) / 1000);
         setElapsedTime(
           `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
         );
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [isClockedIn, clockInTime]);
+  }, [isClockedIn, clockInTime, isPaused, totalPausedMinutes]);
 
   const checkActiveSession = async () => {
     try {
@@ -58,6 +62,8 @@ export function ConsolidatedHeader({
         setIsClockedIn(true);
         setSessionId(session.id);
         setClockInTime(new Date(session.clock_in));
+        setIsPaused(session.is_paused === 1);
+        setTotalPausedMinutes(session.total_paused_minutes || 0);
       }
     } catch (error) {
       console.error('Error checking active session:', error);
@@ -86,9 +92,11 @@ export function ConsolidatedHeader({
       const { durationMinutes } = await apiClient.clockOut();
       
       setIsClockedIn(false);
+      setIsPaused(false);
       setSessionId(null);
       setClockInTime(null);
       setElapsedTime('00:00:00');
+      setTotalPausedMinutes(0);
       
       const hours = Math.floor(durationMinutes / 60);
       const mins = durationMinutes % 60;
@@ -96,6 +104,35 @@ export function ConsolidatedHeader({
     } catch (error: any) {
       console.error('Error clocking out:', error);
       showError('Clock Out Failed', error.message || 'Failed to clock out. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePause = async () => {
+    setIsProcessing(true);
+    try {
+      await apiClient.pauseSession();
+      setIsPaused(true);
+      showSuccess('Session Paused', 'Your work session has been paused.');
+    } catch (error: any) {
+      console.error('Error pausing session:', error);
+      showError('Pause Failed', error.message || 'Failed to pause session. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResume = async () => {
+    setIsProcessing(true);
+    try {
+      const { pausedMinutes } = await apiClient.resumeSession();
+      setIsPaused(false);
+      setTotalPausedMinutes(prev => prev + pausedMinutes);
+      showSuccess('Session Resumed', 'Your work session has been resumed.');
+    } catch (error: any) {
+      console.error('Error resuming session:', error);
+      showError('Resume Failed', error.message || 'Failed to resume session. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -128,14 +165,14 @@ export function ConsolidatedHeader({
                   {isClockedIn ? 'Session Active' : 'Time Tracking'}
                 </div>
                 {isClockedIn && (
-                  <div className="text-xs text-gray-500">
-                    {elapsedTime} • Active
+                  <div className={`text-xs ${isPaused ? 'text-yellow-600' : 'text-gray-500'}`}>
+                    {elapsedTime} • {isPaused ? 'Paused' : 'Active'}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Time Action Button */}
+            {/* Time Action Buttons */}
             {!isClockedIn ? (
               <button
                 onClick={handleClockIn}
@@ -146,14 +183,38 @@ export function ConsolidatedHeader({
                 {isProcessing ? 'Starting...' : 'Clock In'}
               </button>
             ) : (
-              <button
-                onClick={handleClockOut}
-                disabled={isProcessing}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                <Square className="w-4 h-4" />
-                {isProcessing ? 'Stopping...' : 'Clock Out'}
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Pause/Resume Button */}
+                {!isPaused ? (
+                  <button
+                    onClick={handlePause}
+                    disabled={isProcessing}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <Pause className="w-4 h-4" />
+                    {isProcessing ? 'Pausing...' : 'Pause'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleResume}
+                    disabled={isProcessing}
+                    className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    {isProcessing ? 'Resuming...' : 'Resume'}
+                  </button>
+                )}
+                
+                {/* Clock Out Button */}
+                <button
+                  onClick={handleClockOut}
+                  disabled={isProcessing}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4" />
+                  {isProcessing ? 'Stopping...' : 'Clock Out'}
+                </button>
+              </div>
             )}
           </div>
 

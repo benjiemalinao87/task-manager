@@ -156,6 +156,10 @@ CREATE TABLE IF NOT EXISTS time_sessions (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   workspace_id TEXT,
+  is_paused INTEGER DEFAULT 0,
+  paused_at TEXT,
+  total_paused_minutes INTEGER DEFAULT 0,
+  pause_count INTEGER DEFAULT 0,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );

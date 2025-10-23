@@ -181,6 +181,14 @@ class ApiClient {
     return this.post<{ session: any; message: string; durationMinutes: number }>('/api/time-sessions/clock-out');
   }
 
+  async pauseSession() {
+    return this.post<{ session: any; message: string }>('/api/time-sessions/pause');
+  }
+
+  async resumeSession() {
+    return this.post<{ session: any; message: string; pausedMinutes: number }>('/api/time-sessions/resume');
+  }
+
   async getTimeSessions() {
     return this.get<any[]>('/api/time-sessions');
   }
