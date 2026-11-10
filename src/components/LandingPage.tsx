@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowRight, Check, CheckSquare, ChevronDown, Play, X } from 'lucide-react';
+import { ArrowRight, Check, CheckSquare, ChevronDown, X } from 'lucide-react';
 import { PricingPage } from './PricingPage';
 import { AboutPage } from './AboutPage';
 
@@ -8,32 +8,10 @@ interface LandingPageProps {
   onGetStarted: () => void;
 }
 
-const SANS = "'Familjen Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
-const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 const DEMO_VIDEO = 'https://pub-fa3ef00e8d754636901866f47a0dd88f.r2.dev/Workoto%20-%20Made%20with%20Clipchamp.mp4';
 
 const focusRing =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-600';
-
-function formatClock(totalSeconds: number) {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
-}
-
-/** Seconds since the page opened, ticking once a second like the in-app timers. */
-function useSecondsOnPage() {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    const startedAt = Date.now();
-    const id = window.setInterval(() => {
-      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  return seconds;
-}
 
 interface ShotProps {
   src: string;
@@ -173,7 +151,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
   const [showPricing, setShowPricing] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
-  const secondsOnPage = useSecondsOnPage();
 
   useEffect(() => {
     if (!showVideoModal) return;
@@ -195,134 +172,123 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
   const primaryButton = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-6 py-3.5 text-lg font-semibold text-white transition-colors hover:bg-blue-700 ${focusRing}`;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 antialiased" style={{ fontFamily: SANS }}>
-      {/* Navigation */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <nav
-          aria-label="Main"
-          className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5"
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <CheckSquare aria-hidden="true" className="h-5 w-5" />
-            </span>
-            <span className="text-xl font-bold tracking-tight">Workoto</span>
+    <div className="min-h-screen bg-white text-slate-900 antialiased">
+      {/* Hero Section */}
+      <header className="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
+        <nav className="container mx-auto px-4 py-6 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-8 h-8" />
+            <span className="text-xl font-bold">Workoto</span>
+          </div>
+          <button onClick={onGetStarted} className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+            Sign In
+          </button>
+        </nav>
+
+        <div className="container mx-auto px-4 py-20 text-center max-w-5xl">
+          <div className="inline-block bg-blue-500/30 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            Built for Freelancers & Remote Workers
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            <a
-              href="#how-it-works"
-              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 md:inline-block ${focusRing}`}
-            >
-              How it works
-            </a>
-            <a
-              href="#teams"
-              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 md:inline-block ${focusRing}`}
-            >
-              For teams
-            </a>
-            <button
-              onClick={() => setShowPricing(true)}
-              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 sm:inline-block ${focusRing}`}
-            >
-              Pricing
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+            Prove Your Productivity.<br />
+            Give Your Clients Peace of Mind.
+          </h1>
+
+          <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
+            The task manager that automatically keeps your clients updated—so they know exactly what you're working on and when it's done.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+            <button onClick={onGetStarted} className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
+              Signup for Free <ArrowRight className="w-5 h-5" />
             </button>
-            <button
-              onClick={onGetStarted}
-              className={`whitespace-nowrap rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 ${focusRing}`}
-            >
-              Sign in
-            </button>
-            <button
-              onClick={onGetStarted}
-              className={`whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 ${focusRing}`}
-            >
-              <span className="sm:hidden">Sign up free</span>
-              <span className="hidden sm:inline">Create free account</span>
+            <button onClick={() => setShowVideoModal(true)} className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
+              Watch Demo
             </button>
           </div>
-        </nav>
+
+          <p className="text-blue-200 text-sm">No credit card required • 14-day free trial • Cancel anytime</p>
+        </div>
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="overflow-hidden bg-[#f3f6fe]">
-          <div className="mx-auto max-w-6xl px-5 pt-12 md:pt-16">
-            <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)] lg:gap-14">
-              <div>
-                <h1 className="text-[2.6rem] font-bold leading-[1.02] tracking-[-0.03em] sm:text-6xl lg:text-[4.25rem]">
-                  Do the work.
-                  <br />
-                  Workoto keeps your client posted.
-                </h1>
-                <p className="mt-6 max-w-xl text-xl leading-relaxed text-slate-600">
-                  Add a task and your client gets an email saying what you have started. Clock out and they
-                  get the day&rsquo;s report with the hours. You stop writing status updates.
-                </p>
+        {/* Problem Section */}
+        <section className="py-16 bg-gray-50">
+          <div className="container mx-auto px-4 max-w-5xl">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                Tired of "What Are You Working On?" Messages?
+              </h2>
+              <p className="text-xl text-gray-600">
+                You're doing great work, but your clients can't see it.
+              </p>
+            </div>
 
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <button onClick={onGetStarted} className={primaryButton}>
-                    Create free account <ArrowRight aria-hidden="true" className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => setShowVideoModal(true)}
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3.5 text-lg font-semibold text-slate-800 transition-colors hover:border-slate-400 ${focusRing}`}
-                  >
-                    <Play aria-hidden="true" className="h-5 w-5" /> Watch the demo
-                  </button>
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">😰</span>
                 </div>
-                <p className="mt-4 text-slate-500">Free during early access. No credit card needed.</p>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Constant Check-ins
+                </h3>
+                <p className="text-gray-600">
+                  Clients messaging you every few hours asking for updates, breaking your focus.
+                </p>
               </div>
 
-              {/* A working clock, the same kind the app puts on every task */}
-              <div className="rounded-2xl bg-slate-900 p-6 text-white sm:p-7">
-                <p className="flex items-center gap-2 font-medium text-slate-300">
-                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-green-400" />
-                  You have been on this page for
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">🤔</span>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Trust Issues
+                </h3>
+                <p className="text-gray-600">
+                  Clients questioning if you're actually working or how you're spending their money.
                 </p>
-                <p
-                  className="mt-3 text-5xl font-bold tabular-nums tracking-tight text-yellow-400 sm:text-6xl"
-                  style={{ fontFamily: MONO }}
-                  role="timer"
-                  aria-label="Time on this page"
-                >
-                  {formatClock(secondsOnPage)}
-                </p>
-                <p className="mt-4 leading-relaxed text-slate-300">
-                  Workoto puts a clock like this on every task, so the hours you report are the hours you
-                  worked.
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm">
+                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">😓</span>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Lost Opportunities
+                </h3>
+                <p className="text-gray-600">
+                  Missing out on long-term contracts because clients don't feel confident in your process.
                 </p>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="relative mt-10 max-h-[30rem] overflow-hidden rounded-t-xl md:mt-12 md:max-h-[44rem]">
+        {/* How it works: the product, then each client question answered */}
+        <section id="how-it-works" className="scroll-mt-20 py-20 md:py-28">
+          <div className="mx-auto max-w-6xl px-5">
+            <h2 className="max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+              Workoto shows them the work as it happens
+            </h2>
+            <p className="mt-5 max-w-2xl text-xl leading-relaxed text-slate-600">
+              Every task gets a timer, and your client gets an email when you start one. Here is what it
+              looks like while you work.
+            </p>
+
+            <div className="relative mt-12 max-h-[30rem] overflow-hidden rounded-t-xl md:max-h-[44rem]">
               <Shot
                 src="/landing/app-tasks.webp"
                 alt="Workoto task list: a task with a running timer at 1 hour 42 minutes, an AI summary, and four more tasks each with their own timer and assignee."
                 width={2000}
                 height={1637}
-                eager
                 className="rounded-b-none border-b-0"
               />
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#f3f6fe] to-transparent"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent"
               />
             </div>
-          </div>
-        </section>
-
-        {/* How it works: three client questions, each answered by the product */}
-        <section id="how-it-works" className="scroll-mt-20 py-20 md:py-28">
-          <div className="mx-auto max-w-6xl px-5">
-            <h2 className="max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
-              Three messages your clients can stop sending
-            </h2>
-            <p className="mt-5 max-w-2xl text-xl leading-relaxed text-slate-600">
-              Check-ins break your focus, and they usually mean the client cannot see the work. Workoto
-              shows it to them as it happens.
-            </p>
 
             {/* What are you working on? */}
             <div className="mt-16 grid items-center gap-10 md:mt-20 lg:grid-cols-2 lg:gap-16">
