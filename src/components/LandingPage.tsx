@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { CheckCircle2, Clock, Mail, BarChart3, Zap, Shield, ArrowRight, CheckSquare, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { ArrowRight, Check, CheckSquare, ChevronDown, Play, X } from 'lucide-react';
 import { PricingPage } from './PricingPage';
 import { AboutPage } from './AboutPage';
 
@@ -7,592 +8,680 @@ interface LandingPageProps {
   onGetStarted: () => void;
 }
 
+const SANS = "'Familjen Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
+const MONO = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+const DEMO_VIDEO = 'https://pub-fa3ef00e8d754636901866f47a0dd88f.r2.dev/Workoto%20-%20Made%20with%20Clipchamp.mp4';
+
+const focusRing =
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-600';
+
+function formatClock(totalSeconds: number) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+/** Seconds since the page opened, ticking once a second like the in-app timers. */
+function useSecondsOnPage() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = window.setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return seconds;
+}
+
+interface ShotProps {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  eager?: boolean;
+  dark?: boolean;
+  className?: string;
+}
+
+/** A real app screenshot in a plain window frame. */
+function Shot({ src, alt, width, height, eager, dark, className = '' }: ShotProps) {
+  return (
+    <figure
+      className={`overflow-hidden rounded-xl border shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45)] ${
+        dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'
+      } ${className}`}
+    >
+      <div
+        aria-hidden="true"
+        className={`flex items-center gap-1.5 border-b px-4 py-2.5 ${
+          dark ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-slate-50'
+        }`}
+      >
+        {[0, 1, 2].map((i) => (
+          <span key={i} className={`h-2.5 w-2.5 rounded-full ${dark ? 'bg-slate-600' : 'bg-slate-300'}`} />
+        ))}
+      </div>
+      <img
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        loading={eager ? 'eager' : 'lazy'}
+        decoding="async"
+        className="block h-auto w-full"
+      />
+    </figure>
+  );
+}
+
+/** The message a client would have sent. Each feature answers one of these. */
+function ClientMessage({ children, dark }: { children: ReactNode; dark?: boolean }) {
+  return (
+    <p
+      className={`inline-block rounded-2xl rounded-bl-sm px-4 py-2.5 text-base font-medium ${
+        dark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-700'
+      }`}
+    >
+      <span className="sr-only">Client message: </span>
+      {children}
+    </p>
+  );
+}
+
+function Bullets({ items, dark }: { items: string[]; dark?: boolean }) {
+  return (
+    <ul className="mt-6 space-y-3">
+      {items.map((item) => (
+        <li key={item} className="flex gap-3">
+          <Check
+            aria-hidden="true"
+            className={`mt-1 h-5 w-5 flex-shrink-0 ${dark ? 'text-yellow-400' : 'text-blue-600'}`}
+          />
+          <span className={dark ? 'text-slate-200' : 'text-slate-700'}>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const clientEmails = [
+  {
+    time: '9:02 AM',
+    subject: 'Clocked In',
+    preview: 'Maya just started a work session.',
+  },
+  {
+    time: '9:06 AM',
+    subject: 'New Task: Redesign pricing page for Harbor Coffee',
+    preview:
+      'Reworking the pricing page into three clear tiers with an annual billing toggle, covering desktop and mobile. Estimated time: 3 hours.',
+  },
+  {
+    time: '5:31 PM',
+    subject: 'Daily Work Report - Nov 10, 2026',
+    preview: 'Session 7h 12m. Homepage hero copy and layout: estimated 2 hours, actual 1h 48m.',
+  },
+];
+
+const faqs = [
+  {
+    q: 'Will my client get too many emails?',
+    a: 'You decide. Switch off the email for each new task in Settings and your client still gets the daily report when you clock out.',
+  },
+  {
+    q: 'How long does setup take?',
+    a: 'Create an account, enter the email address that should receive your updates, and add your first task. Emails start sending straight away. If you would rather send from your own SendGrid or Resend account, connect it in Settings.',
+  },
+  {
+    q: 'What if I walk away with a timer running?',
+    a: 'While you are clocked in, Workoto watches for activity. After 10 minutes with none it asks if you are still working, and if you do not answer within a minute it pauses your session and your task timers.',
+  },
+  {
+    q: 'Does it work for a team?',
+    a: 'Yes. Invite people to your workspace as admins or members and assign tasks to them. Members see only their own tasks. Owners and admins see everyone’s tasks, hours and completion rate.',
+  },
+  {
+    q: 'I already keep tasks in Asana. Do I have to start over?',
+    a: 'No. Connect Asana and import the tasks you want to track.',
+  },
+];
+
+const testimonials = [
+  {
+    quote:
+      "My clients love getting updates without having to ask. I've landed 3 long-term contracts since using Workoto.",
+    name: 'Jessica S.',
+    role: 'Web Developer',
+  },
+  {
+    quote:
+      "Finally, a way to show I'm actually working without constant screenshots or check-ins. It's a game changer.",
+    name: 'Michael C.',
+    role: 'Designer',
+  },
+  {
+    quote:
+      'Takes 5 seconds to create a task and my clients are always in the loop. Best investment I’ve made this year.',
+    name: 'Alex R.',
+    role: 'Marketing Consultant',
+  },
+];
+
 export function LandingPage({ onGetStarted }: LandingPageProps) {
   const [showPricing, setShowPricing] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const secondsOnPage = useSecondsOnPage();
 
-  // Show pricing page
+  useEffect(() => {
+    if (!showVideoModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowVideoModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showVideoModal]);
+
   if (showPricing) {
     return <PricingPage onGetStarted={onGetStarted} onClose={() => setShowPricing(false)} />;
   }
 
-  // Show about page
   if (showAbout) {
     return <AboutPage onGetStarted={onGetStarted} onClose={() => setShowAbout(false)} />;
   }
+
+  const primaryButton = `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-6 py-3.5 text-lg font-semibold text-white transition-colors hover:bg-blue-700 ${focusRing}`;
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <header className="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-        <nav className="container mx-auto px-4 py-6 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="w-8 h-8" />
-            <span className="text-xl font-bold">Workoto</span>
+    <div className="min-h-screen bg-white text-slate-900 antialiased" style={{ fontFamily: SANS }}>
+      {/* Navigation */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <nav
+          aria-label="Main"
+          className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+              <CheckSquare aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <span className="text-xl font-bold tracking-tight">Workoto</span>
           </div>
-          <button onClick={onGetStarted} className="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-            Sign In
-          </button>
+
+          <div className="flex items-center gap-1 sm:gap-2">
+            <a
+              href="#how-it-works"
+              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 md:inline-block ${focusRing}`}
+            >
+              How it works
+            </a>
+            <a
+              href="#teams"
+              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 md:inline-block ${focusRing}`}
+            >
+              For teams
+            </a>
+            <button
+              onClick={() => setShowPricing(true)}
+              className={`hidden rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 sm:inline-block ${focusRing}`}
+            >
+              Pricing
+            </button>
+            <button
+              onClick={onGetStarted}
+              className={`whitespace-nowrap rounded-md px-3 py-2 font-medium text-slate-600 hover:text-slate-900 ${focusRing}`}
+            >
+              Sign in
+            </button>
+            <button
+              onClick={onGetStarted}
+              className={`whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-700 ${focusRing}`}
+            >
+              <span className="sm:hidden">Sign up free</span>
+              <span className="hidden sm:inline">Create free account</span>
+            </button>
+          </div>
         </nav>
-
-        <div className="container mx-auto px-4 py-20 text-center max-w-5xl">
-          <div className="inline-block bg-blue-500/30 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            Built for Freelancers & Remote Workers
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-            Prove Your Productivity.<br />
-            Give Your Clients Peace of Mind.
-          </h1>
-
-          <p className="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
-            The task manager that automatically keeps your clients updated—so they know exactly what you're working on and when it's done.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <button onClick={onGetStarted} className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg">
-              Signup for Free <ArrowRight className="w-5 h-5" />
-            </button>
-            <button onClick={() => setShowVideoModal(true)} className="border-2 border-white text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-white/10 transition-colors">
-              Watch Demo
-            </button>
-          </div>
-
-          <p className="text-blue-200 text-sm">No credit card required • 14-day free trial • Cancel anytime</p>
-        </div>
       </header>
 
-      {/* Problem Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Tired of "What Are You Working On?" Messages?
+      <main>
+        {/* Hero */}
+        <section className="overflow-hidden bg-[#f3f6fe]">
+          <div className="mx-auto max-w-6xl px-5 pt-12 md:pt-16">
+            <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)] lg:gap-14">
+              <div>
+                <h1 className="text-[2.6rem] font-bold leading-[1.02] tracking-[-0.03em] sm:text-6xl lg:text-[4.25rem]">
+                  Do the work.
+                  <br />
+                  Workoto keeps your client posted.
+                </h1>
+                <p className="mt-6 max-w-xl text-xl leading-relaxed text-slate-600">
+                  Add a task and your client gets an email saying what you have started. Clock out and they
+                  get the day&rsquo;s report with the hours. You stop writing status updates.
+                </p>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <button onClick={onGetStarted} className={primaryButton}>
+                    Create free account <ArrowRight aria-hidden="true" className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => setShowVideoModal(true)}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3.5 text-lg font-semibold text-slate-800 transition-colors hover:border-slate-400 ${focusRing}`}
+                  >
+                    <Play aria-hidden="true" className="h-5 w-5" /> Watch the demo
+                  </button>
+                </div>
+                <p className="mt-4 text-slate-500">Free during early access. No credit card needed.</p>
+              </div>
+
+              {/* A working clock, the same kind the app puts on every task */}
+              <div className="rounded-2xl bg-slate-900 p-6 text-white sm:p-7">
+                <p className="flex items-center gap-2 font-medium text-slate-300">
+                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                  You have been on this page for
+                </p>
+                <p
+                  className="mt-3 text-5xl font-bold tabular-nums tracking-tight text-yellow-400 sm:text-6xl"
+                  style={{ fontFamily: MONO }}
+                  role="timer"
+                  aria-label="Time on this page"
+                >
+                  {formatClock(secondsOnPage)}
+                </p>
+                <p className="mt-4 leading-relaxed text-slate-300">
+                  Workoto puts a clock like this on every task, so the hours you report are the hours you
+                  worked.
+                </p>
+              </div>
+            </div>
+
+            <div className="relative mt-10 max-h-[30rem] overflow-hidden rounded-t-xl md:mt-12 md:max-h-[44rem]">
+              <Shot
+                src="/landing/app-tasks.webp"
+                alt="Workoto task list: a task with a running timer at 1 hour 42 minutes, an AI summary, and four more tasks each with their own timer and assignee."
+                width={2000}
+                height={1637}
+                eager
+                className="rounded-b-none border-b-0"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#f3f6fe] to-transparent"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* How it works: three client questions, each answered by the product */}
+        <section id="how-it-works" className="scroll-mt-20 py-20 md:py-28">
+          <div className="mx-auto max-w-6xl px-5">
+            <h2 className="max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+              Three messages your clients can stop sending
             </h2>
-            <p className="text-xl text-gray-600">
-              You're doing great work, but your clients can't see it.
+            <p className="mt-5 max-w-2xl text-xl leading-relaxed text-slate-600">
+              Check-ins break your focus, and they usually mean the client cannot see the work. Workoto
+              shows it to them as it happens.
             </p>
+
+            {/* What are you working on? */}
+            <div className="mt-16 grid items-center gap-10 md:mt-20 lg:grid-cols-2 lg:gap-16">
+              <div>
+                <ClientMessage>&ldquo;Hey, what are you working on today?&rdquo;</ClientMessage>
+                <h3 className="mt-5 text-3xl font-bold tracking-[-0.01em]">They hear it from Workoto first</h3>
+                <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
+                  When you add a task, your client gets an email with what you are doing and how long you
+                  expect it to take. An AI summary tidies up your notes, so a task called &ldquo;fix nav
+                  bug&rdquo; still reads clearly.
+                </p>
+                <Bullets
+                  items={[
+                    'An email for each new task, with an AI-written summary',
+                    'A note when you clock in for the day',
+                    'A daily report when you clock out: every task, estimated and actual time',
+                  ]}
+                />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45)]">
+                <p className="border-b border-slate-200 px-5 py-3 font-semibold text-slate-500">
+                  Your client&rsquo;s inbox
+                </p>
+                <ul>
+                  {clientEmails.map((email) => (
+                    <li key={email.subject} className="border-b border-slate-100 px-5 py-4 last:border-b-0">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <p className="font-semibold text-slate-900">{email.subject}</p>
+                        <p className="flex-shrink-0 text-sm tabular-nums text-slate-500">{email.time}</p>
+                      </div>
+                      <p className="mt-1 text-slate-600">{email.preview}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* How long did that take? */}
+            <div className="mt-20 grid items-center gap-10 md:mt-28 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-14">
+              <div className="order-2 space-y-5 lg:order-1">
+                <Shot
+                  src="/landing/app-task-list.webp"
+                  alt="Four tasks in progress, each showing its own running timer, assignee and priority."
+                  width={1380}
+                  height={836}
+                />
+                <Shot
+                  src="/landing/app-history.webp"
+                  alt="A completed task showing estimated time of 2 hours, actual time of 1 hour 48 minutes, start and finish times, and a completion note."
+                  width={1380}
+                  height={692}
+                />
+              </div>
+
+              <div className="order-1 lg:order-2">
+                <ClientMessage>&ldquo;How long did that actually take?&rdquo;</ClientMessage>
+                <h3 className="mt-5 text-3xl font-bold tracking-[-0.01em]">Every task has its own clock</h3>
+                <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
+                  Start a task and its timer runs. Pause it when you take a break. When you finish, the task
+                  keeps its estimate, the actual time and your completion note, ready for the invoice
+                  conversation.
+                </p>
+                <Bullets
+                  items={[
+                    'Clock in and out for the day, with pause and resume',
+                    'A separate timer on each task',
+                    'Idle check after 10 minutes, so time away from the desk is not counted',
+                  ]}
+                />
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                <span className="text-2xl">😰</span>
+        {/* Teams */}
+        <section id="teams" className="scroll-mt-20 bg-slate-900 py-20 text-white md:py-28">
+          <div className="mx-auto max-w-6xl px-5">
+            <div className="grid items-end gap-8 lg:grid-cols-2 lg:gap-16">
+              <div>
+                <ClientMessage dark>&ldquo;Who is on what this week?&rdquo;</ClientMessage>
+                <h2 className="mt-5 text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+                  One screen for the whole team&rsquo;s week
+                </h2>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Constant Check-ins
-              </h3>
-              <p className="text-gray-600">
-                Clients messaging you every few hours asking for updates, breaking your focus.
+              <p className="max-w-xl text-lg leading-relaxed text-slate-300">
+                Invite your team, assign tasks, and see tasks completed and hours logged for each person.
+                Members see only their own work. Owners and admins see everything.
               </p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                <span className="text-2xl">🤔</span>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Trust Issues
-              </h3>
-              <p className="text-gray-600">
-                Clients questioning if you're actually working or how you're spending their money.
-              </p>
-            </div>
+            <Shot
+              dark
+              src="/landing/app-dashboard.webp"
+              alt="Workoto team dashboard for a four-person studio: 42 tasks, 83 percent completion rate, 134.3 hours logged, with a completion bar for each team member and a breakdown of tasks by priority."
+              width={1800}
+              height={1145}
+              className="mt-12"
+            />
 
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                <span className="text-2xl">😓</span>
+            <div className="mt-12 grid items-center gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
+              <div>
+                <h3 className="text-3xl font-bold tracking-[-0.01em]">Hours per person, ready to export</h3>
+                <p className="mt-4 text-lg leading-relaxed text-slate-300">
+                  Time reports total the hours for any date range and split them by team member.
+                </p>
+                <Bullets
+                  dark
+                  items={[
+                    'Filter by person and by date',
+                    'Sessions and assigned tasks for each member',
+                    'Export to CSV for payroll or invoicing',
+                  ]}
+                />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Lost Opportunities
-              </h3>
-              <p className="text-gray-600">
-                Missing out on long-term contracts because clients don't feel confident in your process.
-              </p>
+              <Shot
+                dark
+                src="/landing/app-reports.webp"
+                alt="Time report showing 134 hours 20 minutes in total across four members, with hours and share of the total for each person."
+                width={1600}
+                height={847}
+              />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Solution Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Automatic Transparency That Builds Trust
+        {/* More of the app */}
+        <section className="py-20 md:py-28">
+          <div className="mx-auto max-w-6xl px-5">
+            <h2 className="max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+              The rest of the working day is in here too
             </h2>
-            <p className="text-xl text-gray-600">
-              Workoto works in the background, keeping your clients informed without any extra effort from you.
-            </p>
-          </div>
 
-          <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+            <div className="mt-14 grid gap-12 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-16">
+              <div>
+                <Shot
+                  src="/landing/app-chat.webp"
+                  alt="Workoto team chat with four people online, discussing a checkout fix that is ready to ship."
+                  width={828}
+                  height={1260}
+                  className="mx-auto max-w-sm lg:max-w-none"
+                />
+                <h3 className="mt-7 text-2xl font-bold">Team chat next to the tasks</h3>
+                <p className="mt-3 text-lg leading-relaxed text-slate-600">
+                  Each workspace has a chat that shows who is online, so a quick question does not need
+                  another app.
+                </p>
+              </div>
+
+              <div className="space-y-12">
+                <div>
+                  <Shot
+                    src="/landing/app-calendar.webp"
+                    alt="Workoto calendar for November 2026 showing total hours, completed and active task counts, and markers on the days with work."
+                    width={1600}
+                    height={765}
+                  />
+                  <h3 className="mt-7 text-2xl font-bold">Recurring tasks and a calendar</h3>
+                  <p className="mt-3 max-w-2xl text-lg leading-relaxed text-slate-600">
+                    Make the weekly report or the monthly invoice run a recurring task. Complete one and
+                    the next is created for you. The calendar shows active and completed work by day.
+                  </p>
+                </div>
+
+                <div className="border-t border-slate-200 pt-10">
+                  <h3 className="text-2xl font-bold">Works with what you already use</h3>
+                  <dl className="mt-5 grid gap-6 sm:grid-cols-3">
+                    <div>
+                      <dt className="text-lg font-semibold">Asana</dt>
+                      <dd className="mt-1 text-slate-600">Import tasks from your Asana projects.</dd>
+                    </div>
+                    <div>
+                      <dt className="text-lg font-semibold">SendGrid</dt>
+                      <dd className="mt-1 text-slate-600">Send client emails from your own account.</dd>
+                    </div>
+                    <div>
+                      <dt className="text-lg font-semibold">Resend</dt>
+                      <dd className="mt-1 text-slate-600">Or connect Resend instead.</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* What users say */}
+        <section className="bg-[#f3f6fe] py-20 md:py-24">
+          <div className="mx-auto max-w-6xl px-5">
+            <h2 className="text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+              What freelancers say
+            </h2>
+            <div className="mt-12 grid gap-10 md:grid-cols-3">
+              {testimonials.map((t) => (
+                <figure key={t.name} className="border-l-4 border-blue-600 pl-6">
+                  <blockquote className="text-xl leading-relaxed text-slate-800">&ldquo;{t.quote}&rdquo;</blockquote>
+                  <figcaption className="mt-5">
+                    <span className="block font-semibold text-slate-900">{t.name}</span>
+                    <span className="block text-slate-600">{t.role}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section className="py-20 md:py-24">
+          <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="bg-gradient-to-br from-blue-50 to-gray-50 rounded-2xl p-8 shadow-lg">
-                <div className="bg-white rounded-lg p-6 mb-4 shadow-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <span className="text-sm text-gray-500">New Task Created</span>
-                  </div>
-                  <p className="font-semibold text-gray-900">Client Dashboard Redesign</p>
-                  <p className="text-sm text-gray-600 mt-2">Started working on modernizing the client dashboard with new UI components...</p>
-                </div>
-                <div className="bg-white rounded-lg p-6 shadow-sm">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    </div>
-                    <span className="text-sm text-gray-500">Task Completed</span>
-                  </div>
-                  <p className="font-semibold text-gray-900">Homepage Bug Fix</p>
-                  <p className="text-sm text-gray-600 mt-2">Fixed the mobile navigation issue and tested across all devices...</p>
-                </div>
-              </div>
+              <h2 className="text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+                Free while Workoto is in early access
+              </h2>
+              <p className="mt-4 max-w-2xl text-xl leading-relaxed text-slate-600">
+                Early adopters get every feature at no cost. No card is needed to sign up.
+              </p>
             </div>
-
-            <div className="space-y-6">
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Instant Task Notifications</h3>
-                  <p className="text-gray-600">
-                    Your client receives an email the moment you create a task—they see what you're working on in real-time.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Completion Updates</h3>
-                  <p className="text-gray-600">
-                    When you finish a task, they get notified instantly. No more "Did you finish that?" messages.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">AI-Powered Summaries</h3>
-                  <p className="text-gray-600">
-                    Every notification includes a smart summary of your work, making you look professional and organized.
-                  </p>
-                </div>
-              </div>
+            <div className="flex flex-shrink-0 flex-col gap-3 sm:flex-row">
+              <button onClick={onGetStarted} className={primaryButton}>
+                Create free account <ArrowRight aria-hidden="true" className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setShowPricing(true)}
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-slate-300 px-6 py-3.5 text-lg font-semibold text-slate-800 transition-colors hover:border-slate-400 ${focusRing}`}
+              >
+                See pricing
+              </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Integrations Section */}
-      <section className="py-16 bg-white border-y border-gray-200">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-blue-600 mb-2 uppercase tracking-wide">Integrations</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Works With Your Favorite Tools
+        {/* Questions */}
+        <section className="border-t border-slate-200 py-20 md:py-24">
+          <div className="mx-auto max-w-3xl px-5">
+            <h2 className="text-4xl font-bold leading-[1.08] tracking-[-0.02em] md:text-5xl">
+              Questions before you sign up
             </h2>
-            <p className="text-xl text-gray-600">
-              Seamlessly connect with the tools you already use
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {/* Asana */}
-            <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-blue-300 hover:shadow-lg transition-all group">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-orange-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="7" cy="7" r="3"/>
-                    <circle cx="17" cy="7" r="3"/>
-                    <circle cx="12" cy="17" r="3"/>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Asana</h3>
-                <p className="text-gray-600 text-sm">
-                  Auto-sync tasks to your Asana projects. Keep everything in one place.
-                </p>
-              </div>
-            </div>
-
-            {/* Resend */}
-            <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-blue-300 hover:shadow-lg transition-all group">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-gray-900 to-gray-700 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Mail className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Resend</h3>
-                <p className="text-gray-600 text-sm">
-                  Modern email API for reliable delivery. Send beautiful notifications instantly.
-                </p>
-              </div>
-            </div>
-
-            {/* SendGrid */}
-            <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-blue-300 hover:shadow-lg transition-all group">
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">SendGrid</h3>
-                <p className="text-gray-600 text-sm">
-                  Enterprise email delivery at scale. Trusted by thousands of companies.
-                </p>
-              </div>
+            <div className="mt-10 divide-y divide-slate-200 border-y border-slate-200">
+              {faqs.map((faq) => (
+                <details key={faq.q} className="group">
+                  <summary
+                    className={`flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-xl font-semibold [&::-webkit-details-marker]:hidden ${focusRing}`}
+                  >
+                    {faq.q}
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="h-5 w-5 flex-shrink-0 text-slate-500 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                    />
+                  </summary>
+                  <p className="pb-6 pr-10 text-lg leading-relaxed text-slate-600">{faq.a}</p>
+                </details>
+              ))}
             </div>
           </div>
+        </section>
 
-          <div className="text-center mt-12">
-            <p className="text-gray-500 text-sm">
-              ⚡ Connect in under 5 minutes • 🔒 Secure & encrypted • 🔄 Real-time syncing
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Everything You Need to Stay Organized
+        {/* Final call to action */}
+        <section className="bg-blue-600 py-20 text-white md:py-28">
+          <div className="mx-auto max-w-4xl px-5">
+            <h2 className="text-4xl font-bold leading-[1.05] tracking-[-0.02em] md:text-6xl">
+              The next time a client wants an update, it is already in their inbox.
             </h2>
-            <p className="text-xl text-gray-600">
-              A powerful yet simple task manager designed for how freelancers actually work.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <Clock className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Time Tracking</h3>
-              <p className="text-gray-600">Clock in and out with automatic session tracking. Show clients exactly when you're working.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <Mail className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Email Integrations</h3>
-              <p className="text-gray-600">Works with SendGrid and Resend. Set it up once and forget about it.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <Zap className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Quick Task Creation</h3>
-              <p className="text-gray-600">Add tasks in seconds. No complicated forms or unnecessary fields.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <BarChart3 className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Daily Reports</h3>
-              <p className="text-gray-600">Automatic end-of-day summaries sent to your clients with everything you accomplished.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <CheckSquare className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Task History</h3>
-              <p className="text-gray-600">Complete archive of all your work. Perfect for invoicing and performance reviews.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <Shield className="w-10 h-10 text-blue-600 mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Secure & Private</h3>
-              <p className="text-gray-600">Your data is encrypted and secure. Only you and your designated clients have access.</p>
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <button
+                onClick={onGetStarted}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-7 py-4 text-lg font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-600"
+              >
+                Create free account <ArrowRight aria-hidden="true" className="h-5 w-5" />
+              </button>
+              <p className="text-blue-100">Free during early access. No credit card needed.</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Social Proof Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Loved by Freelancers Who Get It
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <span key={i} className="text-yellow-400 text-xl">★</span>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4">
-                "My clients love getting updates without having to ask. I've landed 3 long-term contracts since using Workoto."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                  JS
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Jessica S.</p>
-                  <p className="text-sm text-gray-600">Web Developer</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <span key={i} className="text-yellow-400 text-xl">★</span>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4">
-                "Finally, a way to show I'm actually working without constant screenshots or check-ins. It's a game changer."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                  MC
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Michael C.</p>
-                  <p className="text-sm text-gray-600">Designer</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <span key={i} className="text-yellow-400 text-xl">★</span>
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4">
-                "Takes 5 seconds to create a task and my clients are always in the loop. Best investment I've made this year."
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                  AR
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Alex R.</p>
-                  <p className="text-sm text-gray-600">Marketing Consultant</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-16 bg-blue-600 text-white">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Freelancers Choose Workoto
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="flex gap-4">
-              <CheckCircle2 className="w-6 h-6 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-xl font-bold mb-2">Build Client Trust Automatically</h3>
-                <p className="text-blue-100">
-                  When clients see real-time updates, they trust you more. Trust leads to longer contracts and better rates.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <CheckCircle2 className="w-6 h-6 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-xl font-bold mb-2">Stop Interruptions</h3>
-                <p className="text-blue-100">
-                  No more "quick check-in" calls or messages. Your clients get updates automatically, so you can focus on deep work.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <CheckCircle2 className="w-6 h-6 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-xl font-bold mb-2">Look More Professional</h3>
-                <p className="text-blue-100">
-                  AI summaries make every task look polished. You'll come across as organized and detail-oriented.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <CheckCircle2 className="w-6 h-6 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-xl font-bold mb-2">Win More Projects</h3>
-                <p className="text-blue-100">
-                  Show potential clients your system for transparency. It's a huge competitive advantage.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Objection Handling */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4 max-w-4xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Frequently Asked Questions
-            </h2>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Won't my clients find constant emails annoying?
-              </h3>
-              <p className="text-gray-600">
-                Actually, the opposite. Clients love transparency. You can also customize notification preferences—they can choose daily digests instead of real-time updates.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Is this complicated to set up?
-              </h3>
-              <p className="text-gray-600">
-                No. Connect your email service (we support SendGrid and Resend), add your client's email, and you're done. Takes less than 5 minutes.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                What if I work with multiple clients?
-              </h3>
-              <p className="text-gray-600">
-                Perfect for that. Each task can be tagged to a specific client, so everyone only sees their own updates.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                Do I need to change how I work?
-              </h3>
-              <p className="text-gray-600">
-                Not at all. Just add tasks as you normally would. Workoto handles the rest automatically in the background.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-        <div className="container mx-auto px-4 max-w-4xl text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Ready to Build Unshakeable Client Trust?
-          </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join hundreds of freelancers who've stopped defending their productivity and started proving it.
-          </p>
-
-          <button onClick={onGetStarted} className="bg-white text-blue-600 px-10 py-5 rounded-lg font-bold text-xl hover:bg-blue-50 transition-colors inline-flex items-center gap-2 shadow-xl mx-auto mb-6">
-            Start Your Free Trial <ArrowRight className="w-6 h-6" />
-          </button>
-
-          <p className="text-blue-200 mb-8">14-day free trial • No credit card required • Cancel anytime</p>
-
-          <div className="flex flex-wrap justify-center gap-8 text-sm">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>Setup in 5 minutes</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>No long-term commitment</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>Cancel with 1 click</span>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 text-white mb-4">
-                <CheckSquare className="w-6 h-6" />
-                <span className="font-bold">Workoto</span>
-              </div>
-              <p className="text-sm">
-                The task manager that proves your productivity to clients.
-              </p>
+      <footer className="bg-slate-900 py-14 text-slate-400">
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 md:grid-cols-[1.4fr_1fr_1fr]">
+          <div>
+            <div className="flex items-center gap-2 text-white">
+              <CheckSquare aria-hidden="true" className="h-6 w-6" />
+              <span className="text-lg font-bold">Workoto</span>
             </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white text-left">Features</button></li>
-                <li><button onClick={() => setShowPricing(true)} className="hover:text-white text-left">Pricing</button></li>
-                <li><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-white text-left">Integrations</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Resources</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white">Documentation</a></li>
-                <li><a href="#" className="hover:text-white">Help Center</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button onClick={() => setShowAbout(true)} className="hover:text-white text-left">About</button></li>
-                <li><a href="#" className="hover:text-white">Privacy</a></li>
-                <li><a href="#" className="hover:text-white">Terms</a></li>
-              </ul>
-              <div className="mt-6 space-y-2 text-sm">
-                <p className="text-white font-semibold mb-2">Contact</p>
-                <p>280 Merrylands Road<br />Sydney, NSW 2160<br />Australia</p>
-                <p><a href="tel:+61455221300" className="hover:text-white">+61 455 221 300</a></p>
-                <p><a href="mailto:hello@workoto.app" className="hover:text-white">hello@workoto.app</a></p>
-              </div>
-            </div>
+            <p className="mt-3 max-w-xs">Task timing and client updates for freelancers and remote teams.</p>
+            <p className="mt-6 text-sm">&copy; {new Date().getFullYear()} Workoto. All rights reserved.</p>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; 2025 Workoto. All rights reserved.</p>
+
+          <div>
+            <h2 className="font-semibold text-white">Product</h2>
+            <ul className="mt-4 space-y-2">
+              <li>
+                <a href="#how-it-works" className="hover:text-white">
+                  How it works
+                </a>
+              </li>
+              <li>
+                <a href="#teams" className="hover:text-white">
+                  For teams
+                </a>
+              </li>
+              <li>
+                <button onClick={() => setShowPricing(true)} className="text-left hover:text-white">
+                  Pricing
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setShowAbout(true)} className="text-left hover:text-white">
+                  About
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-white">Contact</h2>
+            <address className="mt-4 space-y-2 not-italic">
+              <p>
+                280 Merrylands Road
+                <br />
+                Sydney, NSW 2160
+                <br />
+                Australia
+              </p>
+              <p>
+                <a href="tel:+61455221300" className="hover:text-white">
+                  +61 455 221 300
+                </a>
+              </p>
+              <p>
+                <a href="mailto:hello@workoto.app" className="hover:text-white">
+                  hello@workoto.app
+                </a>
+              </p>
+            </address>
           </div>
         </div>
       </footer>
 
-      {/* Video Modal */}
+      {/* Demo video */}
       {showVideoModal && (
         <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Workoto demo video"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setShowVideoModal(false)}
         >
           <div
-            className="relative w-full max-w-5xl bg-black rounded-lg overflow-hidden"
+            className="relative w-full max-w-5xl overflow-hidden rounded-lg bg-black"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowVideoModal(false)}
-              className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+              aria-label="Close video"
+              className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <X className="w-6 h-6" />
+              <X aria-hidden="true" className="h-6 w-6" />
             </button>
-            <video
-              className="w-full"
-              controls
-              autoPlay
-              src="https://pub-fa3ef00e8d754636901866f47a0dd88f.r2.dev/Workoto%20-%20Made%20with%20Clipchamp.mp4"
-            >
+            <video className="w-full" controls autoPlay src={DEMO_VIDEO}>
               Your browser does not support the video tag.
             </video>
           </div>
