@@ -67,3 +67,4 @@ max_retries = 2
 # - OPENAI_API_KEY
 # - SENDGRID_API_KEY
 # - RESEND_API_KEY (optional)
+# - FEATURE_REQUEST_EMAIL (inbox that receives in-app feature requests)

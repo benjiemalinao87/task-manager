@@ -9,6 +9,7 @@ export interface Env {
   OPENAI_API_KEY: string;
   RESEND_API_KEY: string;  // Default email provider (customerconnects.com)
   SENDGRID_API_KEY?: string; // Optional fallback
+  FEATURE_REQUEST_EMAIL?: string; // Inbox that receives in-app feature requests
 }
 
 // Database types

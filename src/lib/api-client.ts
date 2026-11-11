@@ -619,6 +619,17 @@ class ApiClient {
   async getNextOccurrence(patternId: string) {
     return this.get<{ nextOccurrence: string; pattern: any }>(`/api/recurring-tasks/${patternId}/next-occurrence`);
   }
+
+  // Feedback methods
+  async submitFeatureRequest(data: {
+    title: string;
+    details?: string;
+    importance: 'nice_to_have' | 'important' | 'critical';
+    workspaceId?: string;
+    pageUrl?: string;
+  }) {
+    return this.post<{ success: boolean; id: string }>('/api/feedback/feature-request', data);
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
